@@ -413,6 +413,26 @@ export default function App() {
     }
   }
 
+  async function handleRemoveWorkspace(wsPath: string, wsName: string) {
+    if (!window.confirm(`Are you sure you want to remove "${wsName}" from Idler's workspace list?\n\n(Note: Files on your computer will NOT be deleted)`)) {
+      return;
+    }
+    setErrorMsg(null);
+    try {
+      await api.deleteWorkspace(wsPath);
+      addToast('success', `Removed workspace "${wsName}" from Idler`);
+      const updated = await api.fetchWorkspaces();
+      setWorkspaces(updated);
+      if (selectedWorkspace === wsPath) {
+        setSelectedWorkspace(updated.length > 0 ? updated[0].path : '');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg);
+      addToast('error', msg);
+    }
+  }
+
   async function handleCreateWorkflow(e: React.FormEvent) {
     e.preventDefault();
     if (!wfName.trim() || !wfQuery.trim()) return;
@@ -1862,25 +1882,49 @@ export default function App() {
                         ({ws.files_count} files, {(ws.total_size_bytes / 1024).toFixed(1)} KB)
                       </span>
                     </div>
-                    {selectedWorkspace === ws.path ? (
-                      <span style={{ fontSize: '12px', background: '#1e3a8a', color: '#93c5fd', padding: '3px 8px', borderRadius: '4px' }}>
-                        Active Folder
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => setSelectedWorkspace(ws.path)}
-                        style={{
-                          padding: '4px 10px',
-                          background: '#374151',
-                          color: '#f9fafb',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontSize: '12px'
-                        }}
-                      >
-                        Set as Active
-                      </button>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {selectedWorkspace === ws.path ? (
+                        <span style={{ fontSize: '12px', background: '#1e3a8a', color: '#93c5fd', padding: '3px 8px', borderRadius: '4px' }}>
+                          Active Folder
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setSelectedWorkspace(ws.path)}
+                          style={{
+                            padding: '4px 10px',
+                            background: '#374151',
+                            color: '#f9fafb',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Set as Active
+                        </button>
+                      )}
+                      {ws.is_removable && (
+                        <button
+                          onClick={() => handleRemoveWorkspace(ws.path, ws.name)}
+                          title="Remove folder from Idler (files on disk are NOT deleted)"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 10px',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            color: '#fca5a5',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Trash2 size={13} />
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>

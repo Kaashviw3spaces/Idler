@@ -99,21 +99,28 @@ def validate_new_workspace_path(path_str: str) -> Path:
     return candidate
 
 
-def get_all_allowed_roots() -> list[Path]:
+def get_all_allowed_roots(db: Optional[object] = None) -> list[Path]:
     """Returns all statically configured and dynamically registered allowed workspace roots."""
     roots = list(settings.get_allowed_workspaces())
     try:
-        from backend.app.db.database import SessionLocal
         from backend.app.db.models import WorkspaceDB
-        db = SessionLocal()
-        try:
-            db_workspaces = db.query(WorkspaceDB).all()
+        if db is not None:
+            db_workspaces = db.query(WorkspaceDB).all()  # type: ignore[attr-defined]
             for w in db_workspaces:
                 p = Path(w.path).resolve()
                 if p not in roots and p.exists() and p.is_dir():
                     roots.append(p)
-        finally:
-            db.close()
+        else:
+            from backend.app.db.database import SessionLocal
+            session = SessionLocal()
+            try:
+                db_workspaces = session.query(WorkspaceDB).all()
+                for w in db_workspaces:
+                    p = Path(w.path).resolve()
+                    if p not in roots and p.exists() and p.is_dir():
+                        roots.append(p)
+            finally:
+                session.close()
     except Exception:
         pass
     return roots

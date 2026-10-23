@@ -269,6 +269,51 @@ def test_export_actions_endpoint_csv_and_json(client_and_workspace):
     assert isinstance(resp_json.json(), list)
 
 
+def test_register_and_remove_workspace(client_and_workspace, tmp_path):
+    client, _ = client_and_workspace
+    custom_dir = tmp_path / "custom_test_dir"
+    custom_dir.mkdir()
+    (custom_dir / "sample.txt").write_text("Hello Custom!")
+
+    # 1. Register new workspace
+    reg_resp = client.post(
+        "/api/workspaces",
+        json={"path": str(custom_dir), "name": "My Custom Test Dir"}
+    )
+    assert reg_resp.status_code == 200
+    data = reg_resp.json()
+    assert data["status"] in ("registered", "exists")
+    assert data["name"] == "My Custom Test Dir"
+
+    # 2. Check list_workspaces: should include custom_dir and mark is_removable = True
+    list_resp = client.get("/api/workspaces")
+    assert list_resp.status_code == 200
+    workspaces = list_resp.json()
+    matching = [w for w in workspaces if w["path"] == str(custom_dir.resolve())]
+    assert len(matching) == 1
+    assert matching[0]["is_removable"] is True
+    assert matching[0]["name"] == "My Custom Test Dir"
+
+    # 3. Delete / remove workspace
+    del_resp = client.delete(f"/api/workspaces?path={custom_dir}")
+    assert del_resp.status_code == 200
+    assert del_resp.json()["status"] == "removed"
+
+    # 4. Verify no longer listed in custom database
+    list_resp_after = client.get("/api/workspaces")
+    assert list_resp_after.status_code == 200
+    matching_after = [w for w in list_resp_after.json() if w["path"] == str(custom_dir.resolve())]
+    assert len(matching_after) == 0
+
+    # 5. Verify local files on disk are untouched
+    assert (custom_dir / "sample.txt").exists()
+
+    # 6. Verify 404 on deleting non-existent / already deleted workspace
+    del_404 = client.delete(f"/api/workspaces?path={custom_dir}")
+    assert del_404.status_code == 404
+
+
+
 
 
 

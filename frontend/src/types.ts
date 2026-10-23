@@ -96,6 +96,7 @@ export interface WorkspaceItem {
   files_count: number;
   total_size_bytes: number;
   preview: WorkspaceFilePreview[];
+  is_removable?: boolean;
 }
 
 export interface WorkspaceFilesResponse {

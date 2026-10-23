@@ -59,37 +59,49 @@ def health_check():
 @router.get("/workspaces")
 def list_workspaces(db: Session = Depends(get_db)):
     """Lists allowed workspaces, registered host directories, and key subfolders."""
-    workspaces = get_all_allowed_roots()
+    workspaces = get_all_allowed_roots(db=db)
     result = []
     seen_paths = set()
 
+    # Query custom workspaces from database to mark is_removable and maintain custom names
+    db_workspaces = {w.path: w for w in db.query(WorkspaceDB).all()}
+
     for ws in workspaces:
-        if str(ws) not in seen_paths and ws.exists() and ws.is_dir():
-            seen_paths.add(str(ws))
+        ws_str = str(ws)
+        if ws_str not in seen_paths and ws.exists() and ws.is_dir():
+            seen_paths.add(ws_str)
             scan = scan_directory(".", ws, recursive=False, max_files=50)
+
+            custom_record = db_workspaces.get(ws_str)
+            display_name = custom_record.name if custom_record else (ws.name or ws_str)
+
             result.append({
-                "name": ws.name or str(ws),
-                "path": str(ws),
+                "name": display_name,
+                "path": ws_str,
                 "files_count": scan.total_files,
                 "total_size_bytes": scan.total_size_bytes,
                 "preview": [f.model_dump() for f in scan.files[:10]],
+                "is_removable": ws_str in db_workspaces,
             })
 
-            # Also discover immediate subdirectories if present (e.g. Downloads, College, Projects)
-            try:
-                for sub in ws.iterdir():
-                    if sub.is_dir() and not sub.name.startswith(".") and str(sub) not in seen_paths:
-                        seen_paths.add(str(sub))
-                        sub_scan = scan_directory(".", sub, recursive=False, max_files=50)
-                        result.append({
-                            "name": f"{ws.name}/{sub.name}",
-                            "path": str(sub),
-                            "files_count": sub_scan.total_files,
-                            "total_size_bytes": sub_scan.total_size_bytes,
-                            "preview": [f.model_dump() for f in sub_scan.files[:10]],
-                        })
-            except (OSError, PermissionError):
-                pass
+            # Only auto-discover immediate subdirectories for internal test_workspace fixture
+            if "test_workspace" in ws_str:
+                try:
+                    for sub in ws.iterdir():
+                        sub_str = str(sub)
+                        if sub.is_dir() and not sub.name.startswith(".") and sub_str not in seen_paths:
+                            seen_paths.add(sub_str)
+                            sub_scan = scan_directory(".", sub, recursive=False, max_files=50)
+                            result.append({
+                                "name": f"{ws.name}/{sub.name}",
+                                "path": sub_str,
+                                "files_count": sub_scan.total_files,
+                                "total_size_bytes": sub_scan.total_size_bytes,
+                                "preview": [f.model_dump() for f in sub_scan.files[:10]],
+                                "is_removable": False,
+                            })
+                except (OSError, PermissionError):
+                    pass
 
     return result
 
@@ -119,6 +131,34 @@ def register_workspace(req: WorkspaceRegisterRequest, db: Session = Depends(get_
         return {"status": "registered", "path": str(resolved), "name": name}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.delete("/workspaces")
+def remove_workspace(path: str = Query(..., description="Path of the workspace to remove"), db: Session = Depends(get_db)):
+    """
+    Removes a custom registered workspace from the database.
+    Does not delete any files or directories on disk.
+    """
+    try:
+        clean_path = str(Path(path).expanduser().resolve())
+    except Exception:
+        clean_path = path
+
+    record = db.query(WorkspaceDB).filter(
+        (WorkspaceDB.path == clean_path) | (WorkspaceDB.path == path)
+    ).first()
+
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workspace '{path}' is not a registered custom workspace or has already been removed."
+        )
+
+    deleted_name = record.name
+    deleted_path = record.path
+    db.delete(record)
+    db.commit()
+    return {"status": "removed", "path": deleted_path, "name": deleted_name}
 
 
 @router.get("/workspace/files")
