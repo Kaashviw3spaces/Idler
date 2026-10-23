@@ -1,84 +1,80 @@
+// Ensure Electron does not inherit node CLI mode from parent shell
+delete process.env.ELECTRON_RUN_AS_NODE;
+
 const { app, BrowserWindow, Tray, Menu, ipcMain, shell, Notification, nativeImage } = require('electron');
 const path = require('path');
 const { spawn, exec } = require('child_process');
 const http = require('http');
 
 let tray = null;
-let window = null;
+let mainWindow = null;
 let backendProcess = null;
 
-const WINDOW_WIDTH = 500;
-const WINDOW_HEIGHT = 750;
+const DEFAULT_WIDTH = 1000;
+const DEFAULT_HEIGHT = 760;
 
-// Prevent multiple instances
+// Enforce single instance
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
+} else {
+  app.on('second-instance', () => {
+    showWindow();
+  });
 }
 
 function getTrayIcon() {
-  const iconPath = path.join(__dirname, 'assets', 'tray-icon.svg');
-  let icon = nativeImage.createFromPath(iconPath);
+  const templatePath = path.join(__dirname, 'assets', 'trayTemplate.png');
+  let icon = nativeImage.createFromPath(templatePath);
   if (icon.isEmpty()) {
-    // Fallback: 16x16 minimal PNG data URI
-    const fallbackDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAWklEQVQ4T2NkoBAwUqifgWoG/P//n5GBgYGBkZERI/7//39GBgYGhh8/fjCiq8GlGW7Av3//MBzAgAcMDDw+fvyIoxlcmiEL0A0g1gBcmohyALFhNFI1kGIEALj/EB7V4qXnAAAAAElFTkSuQmCC';
+    // 16x16 fallback data URI
+    const fallbackDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAAMElEQVR42mNkIAAYCQlYqGkeNYx6ZEAOGhgYGBghfAawGkYNY9SM0YyG6gEMDAAAK1gCBd3P+GMAAAAASUVORK5CYII=';
     icon = nativeImage.createFromDataURL(fallbackDataUri);
   }
-
-  // On macOS, resize to 18x18 and set as template image for Dark/Light mode support
   if (process.platform === 'darwin') {
-    const resized = icon.resize({ width: 18, height: 18 });
-    resized.setTemplateImage(true);
-    return resized;
+    icon.setTemplateImage(true);
   }
-  return icon.resize({ width: 22, height: 22 });
+  return icon;
 }
 
-function getWindowPosition() {
-  if (!tray) return { x: 0, y: 0 };
-  const windowBounds = window.getBounds();
-  const trayBounds = tray.getBounds();
+function showWindow() {
+  if (!mainWindow) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+  mainWindow.show();
+  mainWindow.focus();
 
-  if (process.platform === 'darwin') {
-    // macOS: Centered beneath the top menu bar icon
-    const x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
-    const y = Math.round(trayBounds.y + trayBounds.height + 4);
-    return { x, y };
-  } else {
-    // Windows / Linux: Bottom-right system tray anchor
-    const x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
-    const y = Math.round(trayBounds.y - windowBounds.height - 4);
-    return { x, y };
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.show();
   }
 }
 
 function toggleWindow() {
-  if (!window) return;
-  if (window.isVisible()) {
-    window.hide();
+  if (!mainWindow) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isVisible()) {
+    mainWindow.hide();
   } else {
     showWindow();
   }
 }
 
-function showWindow() {
-  if (!window) return;
-  const { x, y } = getWindowPosition();
-  window.setPosition(x, y, false);
-  window.show();
-  window.focus();
-}
-
 function createWindow() {
-  window = new BrowserWindow({
-    width: WINDOW_WIDTH,
-    height: WINDOW_HEIGHT,
+  mainWindow = new BrowserWindow({
+    width: DEFAULT_WIDTH,
+    height: DEFAULT_HEIGHT,
+    minWidth: 640,
+    minHeight: 480,
     show: false,
-    frame: false,
-    resizable: true,
-    fullscreenable: false,
-    alwaysOnTop: false,
-    skipTaskbar: process.platform === 'darwin',
+    center: true,
+    title: 'Idler',
+    titleBarStyle: 'default',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -86,25 +82,67 @@ function createWindow() {
     },
   });
 
-  // Load Vite dev server if running, else load built frontend
   const devUrl = 'http://localhost:5173';
-  const prodPath = path.join(__dirname, '..', 'frontend', 'dist', 'index.html');
+  const prodPath = path.join(__dirname, 'frontend_dist', 'index.html');
+  const fallbackProdPath = path.join(__dirname, '..', 'frontend', 'dist', 'index.html');
 
-  http.get(devUrl, () => {
-    window.loadURL(devUrl);
-  }).on('error', () => {
-    window.loadFile(prodPath);
+  function loadStaticUI() {
+    const fs = require('fs');
+    if (fs.existsSync(prodPath)) {
+      mainWindow.loadFile(prodPath);
+    } else if (fs.existsSync(fallbackProdPath)) {
+      mainWindow.loadFile(fallbackProdPath);
+    } else {
+      console.error('Frontend build artifacts not found at', prodPath, 'or', fallbackProdPath);
+    }
+  }
+
+  // Check if Vite dev server is running, otherwise load static production build
+  const req = http.get(devUrl, (res) => {
+    if (res.statusCode === 200) {
+      mainWindow.loadURL(devUrl);
+    } else {
+      loadStaticUI();
+    }
+  });
+  req.on('error', () => {
+    loadStaticUI();
+  });
+  req.setTimeout(800, () => {
+    req.destroy();
+    loadStaticUI();
   });
 
-  // Hide window when user clicks outside / blurs
-  window.on('blur', () => {
-    if (!window.webContents.isDevToolsOpened()) {
-      window.hide();
+  // Reveal window as soon as rendered
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    mainWindow.focus();
+    if (process.platform === 'darwin' && app.dock) {
+      app.dock.show();
     }
   });
 
-  window.on('closed', () => {
-    window = null;
+  // Safety fallback: ensure window is visible after 1.2s regardless of event timing
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show();
+      mainWindow.focus();
+      if (process.platform === 'darwin' && app.dock) {
+        app.dock.show();
+      }
+    }
+  }, 1200);
+
+  // When user clicks the red X close button, hide to tray instead of terminating
+  mainWindow.on('close', (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
   });
 }
 
@@ -113,11 +151,21 @@ function createTray() {
   tray = new Tray(icon);
   tray.setToolTip('Idler — Local AI File Assistant');
 
+  if (process.platform === 'darwin') {
+    tray.setTitle(' Idler');
+  }
+
   const contextMenu = Menu.buildFromTemplate([
-    { label: '🦥 Idler (Menu Bar App)', enabled: false },
+    { label: '🦥 Idler Desktop', enabled: false },
     { type: 'separator' },
-    { label: 'Open Window', click: () => showWindow() },
-    { label: 'Open in Browser', click: () => shell.openExternal('http://localhost:5173') },
+    {
+      label: 'Open Idler Window',
+      click: () => showWindow(),
+    },
+    {
+      label: 'Open in Web Browser',
+      click: () => shell.openExternal('http://localhost:5173'),
+    },
     { type: 'separator' },
     {
       label: 'Play macOS Glass Chime',
@@ -137,12 +185,12 @@ function createTray() {
     },
   ]);
 
-  // Left click toggles window
+  // Click tray icon to toggle window
   tray.on('click', () => {
     toggleWindow();
   });
 
-  // Right click opens context menu
+  // Right-click opens context menu
   tray.on('right-click', () => {
     tray.popUpContextMenu(contextMenu);
   });
@@ -158,11 +206,10 @@ function playNativeChime(target) {
   }
 }
 
-// Check backend health, start backend if not running
 function ensureBackend() {
   http.get('http://127.0.0.1:8000/api/health', (res) => {
     if (res.statusCode === 200) {
-      console.log('FastAPI backend is already active.');
+      console.log('FastAPI backend is active.');
     }
   }).on('error', () => {
     console.log('Starting FastAPI backend server...');
@@ -192,7 +239,7 @@ ipcMain.handle('toggle-window', () => {
 });
 
 ipcMain.handle('minimize-to-tray', () => {
-  if (window) window.hide();
+  if (mainWindow) mainWindow.hide();
 });
 
 ipcMain.handle('open-external', (e, url) => {
@@ -204,11 +251,10 @@ app.whenReady().then(() => {
   ensureBackend();
   createWindow();
   createTray();
+});
 
-  // Hide dock icon on macOS so it runs purely in menu bar
-  if (process.platform === 'darwin' && app.dock) {
-    app.dock.hide();
-  }
+app.on('activate', () => {
+  showWindow();
 });
 
 app.on('window-all-closed', (e) => {

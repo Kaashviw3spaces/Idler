@@ -27,7 +27,6 @@
       ],
       "icon": "assets/icon.png",
       "extendInfo": {
-        "LSUIElement": 1,
         "NSHighResolutionCapable": true
       }
     },
@@ -45,7 +44,8 @@
       "main.cjs",
       "preload.cjs",
       "assets/**/*",
-      "../frontend/dist/**/*"
+      "frontend_dist/**/*"
     ]
   }
 }
+

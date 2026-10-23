@@ -1,7 +1,10 @@
 #!/bin/bash
 set -e
 
-echo "🦥 Launching Idler Menu Bar Desktop App..."
+# Ensure Electron runs in GUI mode even if invoked from an Electron subshell
+unset ELECTRON_RUN_AS_NODE
+
+echo "🦥 Launching Idler Desktop App..."
 
 # Get project root
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
@@ -24,3 +27,4 @@ fi
 # Launch Electron tray app
 cd electron
 npx electron .
+

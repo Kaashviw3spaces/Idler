@@ -9,3 +9,4 @@ contextBridge.exposeInMainWorld('idlerDesktop', {
   minimizeToTray: () => ipcRenderer.invoke('minimize-to-tray'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 });
+

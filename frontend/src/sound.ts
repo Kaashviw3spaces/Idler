@@ -172,3 +172,4 @@ export function playTaskCompleteChime(mode: SoundPlatform = 'auto') {
     // Non-blocking fallback
   });
 }
+
