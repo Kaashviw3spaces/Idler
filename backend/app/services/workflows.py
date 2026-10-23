@@ -122,3 +122,35 @@ class WorkflowService:
 
         return summary
 
+    def delete_workflow(self, workflow_id: str) -> bool:
+        """Deletes a saved workflow and its associated run records."""
+        wf = self.db.query(WorkflowDB).filter(WorkflowDB.id == workflow_id).first()
+        if not wf:
+            raise ValueError(f"Workflow '{workflow_id}' not found")
+        # Delete associated runs first
+        self.db.query(WorkflowRunDB).filter(WorkflowRunDB.workflow_id == workflow_id).delete()
+        self.db.delete(wf)
+        self.db.commit()
+        return True
+
+    def toggle_workflow(self, workflow_id: str) -> WorkflowResponse:
+        """Toggles the is_active status of a workflow between active and paused."""
+        wf = self.db.query(WorkflowDB).filter(WorkflowDB.id == workflow_id).first()
+        if not wf:
+            raise ValueError(f"Workflow '{workflow_id}' not found")
+        wf.is_active = not wf.is_active
+        wf.updated_at = datetime.utcnow()
+        self.db.commit()
+        self.db.refresh(wf)
+        return WorkflowResponse(
+            id=wf.id,
+            name=wf.name,
+            description=wf.description,
+            query=wf.query,
+            workspace_path=wf.workspace_path,
+            is_active=wf.is_active,
+            schedule_cron=wf.schedule_cron,
+            created_at=wf.created_at.isoformat() if wf.created_at else "",
+        )
+
+

@@ -99,3 +99,13 @@ class DuplicateScanResult(BaseModel):
     duplicate_groups: List[DuplicateGroup]
     total_wasted_bytes: int
 
+
+class ProjectInspectionResult(BaseModel):
+    project_path: str
+    project_type: str
+    total_files: int
+    readme_snippet: Optional[str] = None
+    key_files: List[str] = Field(default_factory=list)
+    languages: Dict[str, int] = Field(default_factory=dict)
+
+

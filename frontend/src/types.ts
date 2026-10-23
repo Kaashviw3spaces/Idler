@@ -112,3 +112,20 @@ export interface SystemHealth {
   ollama_model: string;
   allowed_workspaces: string[];
 }
+
+export interface ProjectInspectionResult {
+  project_path: string;
+  project_type: string;
+  total_files: number;
+  readme_snippet?: string;
+  key_files: string[];
+  languages: Record<string, number>;
+}
+
+export interface TrashAllResponse {
+  status: string;
+  trashed_count: number;
+  trashed_bytes: number;
+  trashed_files: string[];
+  message: string;
+}

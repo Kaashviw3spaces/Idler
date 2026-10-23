@@ -10,6 +10,7 @@ from backend.app.schemas.models import (
 )
 from backend.app.security.policies import validate_action_policy
 from backend.app.tools.files import move_file_safely, rename_file_safely
+from backend.app.tools.project import inspect_project
 
 
 class PlanExecutor:
@@ -74,6 +75,42 @@ class PlanExecutor:
                 new_name=action.destination,
                 workspace_root=self.workspace_root,
             )
+
+        elif action.type == ActionType.SUMMARIZE_PROJECT:
+            try:
+                inspection = inspect_project(
+                    rel_path=action.source or ".",
+                    workspace_root=self.workspace_root,
+                )
+                top_langs = sorted(inspection.languages.items(), key=lambda x: x[1], reverse=True)[:3]
+                lang_str = ", ".join(f"{k} ({v})" for k, v in top_langs)
+                summary_msg = (
+                    f"Project type: {inspection.project_type.upper()}. "
+                    f"Total files: {inspection.total_files}. "
+                    f"Languages: {lang_str}. "
+                    f"Key files: {', '.join(inspection.key_files[:5]) or 'none'}."
+                )
+                return ActionResult(
+                    action_id=action.id,
+                    action_type=action.type,
+                    status=ActionStatus.COMPLETED,
+                    source=action.source,
+                    destination=None,
+                    message=summary_msg,
+                    rollback_supported=False,
+                    rollback_metadata=inspection.model_dump(),
+                )
+            except Exception as e:
+                return ActionResult(
+                    action_id=action.id,
+                    action_type=action.type,
+                    status=ActionStatus.FAILED,
+                    source=action.source,
+                    destination=None,
+                    message=f"Failed to inspect project: {e}",
+                    error=str(e),
+                    rollback_supported=False,
+                )
 
         return ActionResult(
             action_id=action.id,

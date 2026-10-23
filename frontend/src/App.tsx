@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Sparkles,
   CheckCircle2,
@@ -16,7 +16,13 @@ import {
   FolderOpen,
   FileCheck,
   PlusCircle,
-  File
+  File,
+  Trash2,
+  Clock,
+  X,
+  Code2,
+  Layers,
+  Download,
 } from 'lucide-react';
 import {
   PlanResponse,
@@ -27,25 +33,111 @@ import {
   SystemHealth,
   WorkspaceItem,
   WorkspaceFilePreview,
+  ProjectInspectionResult,
 } from './types';
 import * as api from './api';
+
+// ─── Toast System ────────────────────────────────────────────────────────────
+
+type ToastKind = 'success' | 'error' | 'info';
+
+interface Toast {
+  id: number;
+  kind: ToastKind;
+  message: string;
+}
+
+let _toastSeq = 0;
+
+function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number) => void }) {
+  if (toasts.length === 0) return null;
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: '24px',
+      right: '24px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+      zIndex: 9999,
+      maxWidth: '380px',
+    }}>
+      {toasts.map((t) => (
+        <div key={t.id} style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '10px',
+          background: t.kind === 'success' ? '#064e3b' : t.kind === 'error' ? '#450a0a' : '#1e293b',
+          border: `1px solid ${t.kind === 'success' ? '#059669' : t.kind === 'error' ? '#dc2626' : '#334155'}`,
+          color: t.kind === 'success' ? '#a7f3d0' : t.kind === 'error' ? '#fca5a5' : '#cbd5e1',
+          padding: '12px 16px',
+          borderRadius: '10px',
+          fontSize: '14px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+          animation: 'slideIn 0.2s ease-out',
+        }}>
+          {t.kind === 'success' && <CheckCircle2 size={16} style={{ marginTop: '1px', flexShrink: 0, color: '#34d399' }} />}
+          {t.kind === 'error' && <AlertTriangle size={16} style={{ marginTop: '1px', flexShrink: 0, color: '#f87171' }} />}
+          {t.kind === 'info' && <Clock size={16} style={{ marginTop: '1px', flexShrink: 0, color: '#38bdf8' }} />}
+          <span style={{ flex: 1 }}>{t.message}</span>
+          <button onClick={() => onDismiss(t.id)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, opacity: 0.6 }}>
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function fmtBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 const QUICK_PROMPTS = [
   { label: '📄 Organize PDFs', prompt: 'Organize all PDF documents into the Documents folder' },
   { label: '📊 Sort Spreadsheets', prompt: 'Move all Excel spreadsheets and CSV files into Spreadsheets' },
   { label: '🖼️ Group Images', prompt: 'Organize all pictures and screenshots into Images' },
   { label: '🔍 Find Duplicates', prompt: 'Scan workspace and find identical duplicate files' },
+  { label: '💻 Summarize Project', prompt: 'Inspect and summarize project repository structure' },
 ];
 
+function notifyUser(title: string, body: string) {
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(title, { body });
+    } catch {
+      // Fallback
+    }
+  }
+}
+
 export default function App() {
-  const [tab, setTab] = useState<'planner' | 'ledger' | 'duplicates' | 'workflows' | 'workspaces'>('planner');
+  const [tab, setTab] = useState<'planner' | 'ledger' | 'duplicates' | 'workflows' | 'projects' | 'workspaces'>('planner');
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [isBackendOffline, setIsBackendOffline] = useState(false);
   
+  // Toast notifications
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const addToast = useCallback((kind: ToastKind, message: string) => {
+    const id = ++_toastSeq;
+    setToasts((prev) => [...prev, { id, kind, message }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+  }, []);
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
   // Workspace state
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>('');
   const [liveFiles, setLiveFiles] = useState<WorkspaceFilePreview[]>([]);
+  const [fileFilter, setFileFilter] = useState('');
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [customPath, setCustomPath] = useState('');
   const [customName, setCustomName] = useState('');
@@ -67,16 +159,27 @@ export default function App() {
   // Duplicates State
   const [dupResult, setDupResult] = useState<DuplicateScanResult | null>(null);
   const [isScanningDups, setIsScanningDups] = useState(false);
+  const [trashingPath, setTrashingPath] = useState<string | null>(null);
+  const [isTrashingAll, setIsTrashingAll] = useState(false);
 
   // Workflows State
   const [workflows, setWorkflows] = useState<WorkflowItem[]>([]);
   const [wfName, setWfName] = useState('');
   const [wfQuery, setWfQuery] = useState('');
   const [wfDesc, setWfDesc] = useState('');
+  const [wfCron, setWfCron] = useState('');
   const [isRunningWf, setIsRunningWf] = useState<string | null>(null);
+
+  // Project Inspector State
+  const [projPath, setProjPath] = useState('.');
+  const [projResult, setProjResult] = useState<ProjectInspectionResult | null>(null);
+  const [isInspectingProj, setIsInspectingProj] = useState(false);
 
   useEffect(() => {
     refreshAll();
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
   }, []);
 
   useEffect(() => {
@@ -157,9 +260,11 @@ export default function App() {
     try {
       const plan = await api.createPlan(query, selectedWorkspace || undefined);
       setCurrentPlan(plan);
+      addToast('info', `Plan ready: ${plan.actions.length} action(s) proposed`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMsg(msg);
+      addToast('error', msg);
     } finally {
       setIsPlanning(false);
     }
@@ -176,6 +281,8 @@ export default function App() {
       // Step 2: Execute
       const summary = await api.executeTask(currentPlan.task_id);
       setExecutionSummary(summary);
+      addToast('success', `Execution complete — ${summary.completed_actions}/${summary.total_actions} actions succeeded`);
+      notifyUser('Idler: Task Executed', `Completed ${summary.completed_actions} of ${summary.total_actions} actions`);
       await loadActions();
       await loadWorkspaces();
       if (selectedWorkspace) {
@@ -184,6 +291,7 @@ export default function App() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMsg(msg);
+      addToast('error', msg);
     } finally {
       setIsExecuting(false);
     }
@@ -200,6 +308,7 @@ export default function App() {
     setErrorMsg(null);
     try {
       await api.undoAction(actionId);
+      addToast('success', 'Action rolled back successfully');
       await loadActions();
       await loadWorkspaces();
       if (selectedWorkspace) {
@@ -208,6 +317,7 @@ export default function App() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMsg(msg);
+      addToast('error', msg);
     } finally {
       setUndoingId(null);
     }
@@ -219,11 +329,67 @@ export default function App() {
     try {
       const res = await api.scanDuplicates('.', selectedWorkspace || undefined);
       setDupResult(res);
+      if (res.duplicate_groups.length > 0) {
+        addToast('info', `Found ${res.duplicate_groups.length} duplicate group(s) wasting ${fmtBytes(res.total_wasted_bytes)}`);
+      } else {
+        addToast('success', 'No duplicates found — workspace is clean!');
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMsg(msg);
+      addToast('error', msg);
     } finally {
       setIsScanningDups(false);
+    }
+  }
+
+  async function handleTrashDuplicate(filePath: string) {
+    setTrashingPath(filePath);
+    try {
+      const res = await api.trashDuplicate(filePath, selectedWorkspace || undefined);
+      addToast('success', res.message);
+      // Re-scan to reflect the deletion
+      const updated = await api.scanDuplicates('.', selectedWorkspace || undefined);
+      setDupResult(updated);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', msg);
+    } finally {
+      setTrashingPath(null);
+    }
+  }
+
+  async function handleTrashAllDuplicates() {
+    setIsTrashingAll(true);
+    try {
+      const res = await api.trashAllDuplicates(selectedWorkspace || undefined);
+      addToast('success', res.message);
+      notifyUser('Idler: Duplicates Cleaned', res.message);
+      const updated = await api.scanDuplicates('.', selectedWorkspace || undefined);
+      setDupResult(updated);
+      if (selectedWorkspace) {
+        await loadLiveFiles(selectedWorkspace);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', msg);
+    } finally {
+      setIsTrashingAll(false);
+    }
+  }
+
+  async function handleInspectProject() {
+    setIsInspectingProj(true);
+    setProjResult(null);
+    try {
+      const res = await api.inspectProject(projPath.trim() || '.', selectedWorkspace || undefined);
+      setProjResult(res);
+      addToast('success', `Inspected ${res.project_type.toUpperCase()} project (${res.total_files} files)`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', msg);
+    } finally {
+      setIsInspectingProj(false);
     }
   }
 
@@ -235,6 +401,7 @@ export default function App() {
     try {
       const res = await api.registerWorkspace(customPath.trim(), customName.trim() || undefined);
       setRegisterSuccess(`Added workspace "${res.name}" (${res.path})`);
+      addToast('success', `Workspace "${res.name}" registered successfully`);
       setCustomPath('');
       setCustomName('');
       await loadWorkspaces();
@@ -242,6 +409,7 @@ export default function App() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMsg(msg);
+      addToast('error', msg);
     }
   }
 
@@ -249,24 +417,30 @@ export default function App() {
     e.preventDefault();
     if (!wfName.trim() || !wfQuery.trim()) return;
     try {
-      await api.createWorkflow(wfName, wfQuery, wfDesc, selectedWorkspace || undefined);
+      await api.createWorkflow(wfName, wfQuery, wfDesc, selectedWorkspace || undefined, wfCron.trim() || undefined);
+      addToast('success', `Workflow "${wfName}" saved`);
       setWfName('');
       setWfQuery('');
       setWfDesc('');
+      setWfCron('');
       await loadWorkflows();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMsg(msg);
+      addToast('error', msg);
     }
   }
 
-  async function handleRunWorkflow(id: string) {
+  async function handleRunWorkflow(id: string, name: string) {
     setIsRunningWf(id);
     setErrorMsg(null);
+    addToast('info', `Running workflow "${name}"…`);
     try {
       const res = await api.runWorkflow(id);
       setExecutionSummary(res);
       setTab('planner');
+      addToast('success', `Workflow "${name}" completed — ${res.completed_actions}/${res.total_actions} actions`);
+      notifyUser('Idler: Workflow Done', `Workflow "${name}" executed successfully`);
       await loadActions();
       await loadWorkspaces();
       if (selectedWorkspace) {
@@ -275,10 +449,41 @@ export default function App() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMsg(msg);
+      addToast('error', msg);
     } finally {
       setIsRunningWf(null);
     }
   }
+
+  async function handleDeleteWorkflow(id: string, name: string) {
+    try {
+      await api.deleteWorkflow(id);
+      addToast('info', `Workflow "${name}" deleted`);
+      await loadWorkflows();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', msg);
+    }
+  }
+
+  async function handleToggleWorkflow(id: string) {
+    try {
+      const updated = await api.toggleWorkflow(id);
+      addToast('info', `Workflow "${updated.name}" is now ${updated.is_active ? 'active' : 'paused'}`);
+      await loadWorkflows();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', msg);
+    }
+  }
+
+  const filteredLiveFiles = useMemo(() => {
+    if (!fileFilter.trim()) return liveFiles;
+    const q = fileFilter.toLowerCase();
+    return liveFiles.filter(
+      (f) => f.name.toLowerCase().includes(q) || f.category.toLowerCase().includes(q)
+    );
+  }, [liveFiles, fileFilter]);
 
   const filteredActions = actions.filter((act) => {
     if (ledgerFilter === 'completed') return act.status === 'completed' && !act.is_undone;
@@ -507,6 +712,25 @@ export default function App() {
         </button>
 
         <button
+          onClick={() => setTab('projects')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            border: 'none',
+            fontSize: '14px',
+            fontWeight: '600',
+            background: tab === 'projects' ? '#2563eb' : 'transparent',
+            color: tab === 'projects' ? '#ffffff' : '#94a3b8'
+          }}
+        >
+          <Code2 size={16} />
+          Project Inspector
+        </button>
+
+        <button
           onClick={() => { setTab('workflows'); loadWorkflows(); }}
           style={{
             display: 'flex',
@@ -604,14 +828,33 @@ export default function App() {
 
             {/* Live files preview list */}
             <div>
-              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>
-                {liveFiles.length} file(s) currently detected on your computer in this directory:
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                  {filteredLiveFiles.length} of {liveFiles.length} file(s) currently detected on your computer:
+                </span>
+                <input
+                  type="text"
+                  placeholder="Filter files (e.g. .pdf, invoice)..."
+                  value={fileFilter}
+                  onChange={(e) => setFileFilter(e.target.value)}
+                  style={{
+                    background: '#1e293b',
+                    color: '#e2e8f0',
+                    border: '1px solid #334155',
+                    borderRadius: '6px',
+                    padding: '3px 8px',
+                    fontSize: '12px',
+                    width: '200px'
+                  }}
+                />
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '110px', overflowY: 'auto' }}>
-                {liveFiles.length === 0 ? (
-                  <span style={{ fontSize: '13px', color: '#64748b' }}>No files found in this folder.</span>
+                {filteredLiveFiles.length === 0 ? (
+                  <span style={{ fontSize: '13px', color: '#64748b' }}>
+                    {liveFiles.length === 0 ? 'No files found in this folder.' : 'No files match the filter.'}
+                  </span>
                 ) : (
-                  liveFiles.map((f, i) => (
+                  filteredLiveFiles.map((f, i) => (
                     <span key={i} style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -922,6 +1165,26 @@ export default function App() {
               >
                 Refresh
               </button>
+
+              <a
+                href="http://127.0.0.1:8000/api/actions/export?format=csv"
+                download="idler_action_ledger.csv"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  background: '#1e293b',
+                  color: '#38bdf8',
+                  border: '1px solid #334155',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  textDecoration: 'none'
+                }}
+              >
+                <Download size={13} />
+                Export CSV
+              </a>
             </div>
           </div>
 
@@ -1058,6 +1321,32 @@ export default function App() {
                 </div>
               </div>
 
+              {dupResult.duplicate_groups.length > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
+                  <button
+                    onClick={handleTrashAllDuplicates}
+                    disabled={isTrashingAll}
+                    style={{
+                      padding: '10px 18px',
+                      background: isTrashingAll ? '#7f1d1d' : '#dc2626',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: '600',
+                      fontSize: '13px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
+                    }}
+                  >
+                    <Trash2 size={16} />
+                    {isTrashingAll ? 'Moving Redundant Copies to Trash...' : 'Trash All Redundant Copies (Keep Originals)'}
+                  </button>
+                </div>
+              )}
+
               {dupResult.duplicate_groups.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
                   No duplicate files found in workspace!
@@ -1085,15 +1374,54 @@ export default function App() {
                             fontSize: '13px',
                             fontFamily: 'monospace',
                             color: '#e2e8f0',
-                            padding: '6px 10px',
+                            padding: '8px 12px',
                             background: '#0f172a',
                             borderRadius: '6px',
                             display: 'flex',
                             alignItems: 'center',
+                            justifyContent: 'space-between',
                             gap: '8px'
                           }}>
-                            <FileCheck size={14} color="#38bdf8" />
-                            <span>{p}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                              <FileCheck size={14} color={pIdx === 0 ? '#10b981' : '#38bdf8'} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p}</span>
+                            </div>
+                            {pIdx === 0 ? (
+                              <span style={{
+                                fontSize: '11px',
+                                background: '#064e3b',
+                                color: '#6ee7b7',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontWeight: '600',
+                                flexShrink: 0
+                              }}>
+                                Keep Original
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleTrashDuplicate(p)}
+                                disabled={trashingPath === p}
+                                title="Move duplicate copy to macOS Trash (recoverable)"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '4px 10px',
+                                  background: '#450a0a',
+                                  color: '#fca5a5',
+                                  border: '1px solid #7f1d1d',
+                                  borderRadius: '6px',
+                                  fontSize: '12px',
+                                  fontWeight: '500',
+                                  cursor: 'pointer',
+                                  flexShrink: 0
+                                }}
+                              >
+                                <Trash2 size={12} />
+                                {trashingPath === p ? 'Trashing...' : 'Move to Trash'}
+                              </button>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -1144,19 +1472,34 @@ export default function App() {
                   }}
                 />
               </div>
-              <input
-                type="text"
-                placeholder="Natural Language Command (e.g. Sort PDFs and images into their folders)"
-                value={wfQuery}
-                onChange={(e) => setWfQuery(e.target.value)}
-                style={{
-                  padding: '12px',
-                  borderRadius: '8px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
-                  color: '#ffffff'
-                }}
-              />
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                <input
+                  type="text"
+                  placeholder="Natural Language Command (e.g. Sort PDFs and images into their folders)"
+                  value={wfQuery}
+                  onChange={(e) => setWfQuery(e.target.value)}
+                  style={{
+                    padding: '12px',
+                    borderRadius: '8px',
+                    background: '#1e293b',
+                    border: '1px solid #334155',
+                    color: '#ffffff'
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Auto-run Daily (HH:MM UTC, e.g. 09:00)"
+                  value={wfCron}
+                  onChange={(e) => setWfCron(e.target.value)}
+                  style={{
+                    padding: '12px',
+                    borderRadius: '8px',
+                    background: '#1e293b',
+                    border: '1px solid #334155',
+                    color: '#ffffff'
+                  }}
+                />
+              </div>
               <button
                 type="submit"
                 disabled={!wfName.trim() || !wfQuery.trim()}
@@ -1197,13 +1540,31 @@ export default function App() {
                     gap: '12px'
                   }}>
                     <div>
-                      <div style={{ fontSize: '16px', fontWeight: '600', color: '#f8fafc' }}>{wf.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '16px', fontWeight: '600', color: '#f8fafc' }}>{wf.name}</span>
+                        {wf.schedule_cron && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: '#1e3a8a',
+                            color: '#93c5fd',
+                            fontSize: '11px',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontWeight: '600'
+                          }}>
+                            <Clock size={11} />
+                            Daily at {wf.schedule_cron} UTC
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '2px' }}>{wf.query}</div>
                       {wf.description && <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{wf.description}</div>}
                     </div>
 
                     <button
-                      onClick={() => handleRunWorkflow(wf.id)}
+                      onClick={() => handleRunWorkflow(wf.id, wf.name)}
                       disabled={isRunningWf === wf.id}
                       style={{
                         display: 'flex',
@@ -1225,6 +1586,140 @@ export default function App() {
                 ))
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: PROJECT INSPECTOR */}
+      {tab === 'projects' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
+          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
+            <div style={{ marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Code2 size={20} color="#38bdf8" />
+                Project & Repository Inspector
+              </h2>
+              <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '4px' }}>
+                Safely inspects project structure, detects manifests (Python, Node, Rust, Go), categorizes languages, and parses README documentation without executing untrusted code.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="Folder relative to workspace (e.g. . or Projects/portfolio-site)"
+                value={projPath}
+                onChange={(e) => setProjPath(e.target.value)}
+                style={{
+                  flex: 1,
+                  minWidth: '280px',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  color: '#ffffff',
+                  fontSize: '14px'
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleInspectProject}
+                disabled={isInspectingProj}
+                style={{
+                  padding: '12px 20px',
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer'
+                }}
+              >
+                <Search size={16} />
+                {isInspectingProj ? 'Inspecting Repo...' : 'Inspect Repository'}
+              </button>
+            </div>
+
+            {projResult && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* Stats Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
+                  <div style={{ background: '#1e293b', padding: '16px', borderRadius: '10px' }}>
+                    <div style={{ color: '#94a3b8', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Project Stack</div>
+                    <div style={{ fontSize: '22px', fontWeight: '700', color: '#38bdf8', textTransform: 'uppercase' }}>
+                      {projResult.project_type}
+                    </div>
+                  </div>
+                  <div style={{ background: '#1e293b', padding: '16px', borderRadius: '10px' }}>
+                    <div style={{ color: '#94a3b8', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Files</div>
+                    <div style={{ fontSize: '22px', fontWeight: '700', color: '#f8fafc' }}>
+                      {projResult.total_files}
+                    </div>
+                  </div>
+                  <div style={{ background: '#1e293b', padding: '16px', borderRadius: '10px' }}>
+                    <div style={{ color: '#94a3b8', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Key Manifests</div>
+                    <div style={{ fontSize: '14px', fontWeight: '600', color: '#a7f3d0', marginTop: '6px' }}>
+                      {projResult.key_files.slice(0, 3).join(', ') || 'Standard Directory'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Languages breakdown */}
+                <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '18px' }}>
+                  <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#cbd5e1', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Layers size={15} color="#38bdf8" />
+                    Language Composition
+                  </h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {Object.entries(projResult.languages).map(([lang, count]) => (
+                      <span key={lang} style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: '#0f172a',
+                        color: '#f8fafc',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        border: '1px solid #334155'
+                      }}>
+                        <strong style={{ color: '#38bdf8' }}>{lang}</strong>
+                        <span style={{ color: '#94a3b8', fontSize: '12px' }}>({count} files)</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* README Snippet Preview Card */}
+                {projResult.readme_snippet && (
+                  <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '18px' }}>
+                    <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#cbd5e1', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <File size={15} color="#38bdf8" />
+                      README Overview (Untrusted Text Preview)
+                    </h4>
+                    <pre style={{
+                      background: '#0f172a',
+                      color: '#cbd5e1',
+                      padding: '16px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontFamily: 'monospace',
+                      whiteSpace: 'pre-wrap',
+                      maxHeight: '260px',
+                      overflowY: 'auto',
+                      border: '1px solid #1e293b',
+                      lineHeight: '1.5'
+                    }}>
+                      {projResult.readme_snippet}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1369,6 +1864,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Global Toast Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

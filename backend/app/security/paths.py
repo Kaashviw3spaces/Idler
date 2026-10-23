@@ -37,6 +37,14 @@ FORBIDDEN_SYSTEM_PATHS = {
 }
 
 
+def _is_forbidden_system_path(candidate: Path) -> bool:
+    """Returns True if the resolved path or any of its ancestors is a protected system directory."""
+    for forbidden in FORBIDDEN_SYSTEM_PATHS:
+        if candidate == forbidden or candidate.is_relative_to(forbidden):
+            return True
+    return False
+
+
 def validate_new_workspace_path(path_str: str) -> Path:
     """
     Validates a path on the local computer before adding it to allowed workspaces.
@@ -54,9 +62,8 @@ def validate_new_workspace_path(path_str: str) -> Path:
     if not candidate.is_dir():
         raise NotADirectoryError(f"Path is not a directory: '{candidate}'")
 
-    for forbidden in FORBIDDEN_SYSTEM_PATHS:
-        if candidate == forbidden:
-            raise WorkspaceBoundaryError(f"Directory '{candidate}' is a protected system directory.")
+    if _is_forbidden_system_path(candidate):
+        raise WorkspaceBoundaryError(f"Directory '{candidate}' is a protected system directory.")
 
     return candidate
 
@@ -202,4 +209,27 @@ def to_relative_path(absolute_path: Path, workspace_root: Path) -> str:
         return str(absolute_path.resolve().relative_to(workspace_root.resolve()).as_posix())
     except ValueError:
         return str(absolute_path.name)
+
+
+def resolve_path_in_workspace(path_str: str, workspace_root: Path) -> Path:
+    """
+    Resolves an absolute or relative path, verifying it is within `workspace_root`.
+    Used for soft-delete (trash) operations where the UI sends back the full path
+    as reported by the duplicate scanner.
+    """
+    raw = Path(path_str).expanduser()
+    if raw.is_absolute():
+        resolved = raw.resolve()
+    else:
+        resolved = (workspace_root / raw).resolve()
+
+    # Security: must stay within the allowed workspace boundary
+    try:
+        resolved.relative_to(workspace_root.resolve())
+    except ValueError:
+        raise WorkspaceBoundaryError(
+            f"Path '{path_str}' resolves to '{resolved}', which is outside "
+            f"allowed workspace '{workspace_root}'"
+        )
+    return resolved
 

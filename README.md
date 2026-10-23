@@ -131,6 +131,8 @@ backend/venv/bin/pytest
 | `GET` | `/api/actions` | Retrieve Action Ledger history |
 | `POST` | `/api/actions/{id}/undo` | Safely roll back a supported action |
 | `GET` | `/api/duplicates` | Exact duplicate detection using SHA-256 |
+| `POST` | `/api/duplicates/trash` | Soft-delete duplicate copy to macOS Trash (recoverable) |
+| `GET` | `/api/project/inspect` | Safely inspect project structures, language mix & README |
 | `POST` | `/api/workflows` | Save a declarative workflow in SQLite |
 | `GET` | `/api/workflows` | List saved declarative workflows |
 | `POST` | `/api/workflows/{id}/run` | Revalidate and run a saved workflow |

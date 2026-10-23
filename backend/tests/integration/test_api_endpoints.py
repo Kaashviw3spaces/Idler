@@ -166,3 +166,95 @@ def test_saved_workflow_flow(client_and_workspace):
     assert run_res["status"] == "completed"
     assert (workspace / "Documents" / "doc.pdf").exists()
 
+
+def test_trash_duplicate_soft_delete(client_and_workspace, monkeypatch):
+    client, workspace = client_and_workspace
+    test_file = workspace / "duplicate_copy.txt"
+    test_file.write_text("duplicate file content")
+
+    trashed_paths = []
+    # Mock send2trash so tests don't pollute the user's real OS Trash
+    import send2trash
+    monkeypatch.setattr(send2trash, "send2trash", lambda p: trashed_paths.append(str(p)))
+
+    resp = client.post(
+        "/api/duplicates/trash",
+        json={"file_path": "duplicate_copy.txt", "workspace_path": str(workspace)}
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "trashed"
+    assert str(test_file.resolve()) in trashed_paths
+
+
+def test_trash_duplicate_boundary_enforcement(client_and_workspace):
+    client, workspace = client_and_workspace
+
+    # Attempting to trash outside allowed workspace must return 400
+    resp = client.post(
+        "/api/duplicates/trash",
+        json={"file_path": "../../outside.txt", "workspace_path": str(workspace)}
+    )
+    assert resp.status_code == 400
+
+
+def test_project_inspect_endpoint(client_and_workspace):
+    client, workspace = client_and_workspace
+    rust_dir = workspace / "rust_tool"
+    rust_dir.mkdir()
+    (rust_dir / "Cargo.toml").write_text('[package]\nname = "tool"\n')
+    (rust_dir / "main.rs").write_text('fn main() {}')
+
+    resp = client.get(f"/api/project/inspect?path=rust_tool&workspace_path={workspace}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["project_type"] == "rust"
+    assert data["total_files"] == 2
+    assert "rust" in data["languages"]
+
+
+def test_trash_all_duplicates_preserves_original(client_and_workspace, monkeypatch):
+    client, workspace = client_and_workspace
+
+    # Create 3 identical files
+    content = "Batch duplicate test content 12345"
+    (workspace / "keep_this.txt").write_text(content)
+    (workspace / "copy_a.txt").write_text(content)
+    (workspace / "copy_b.txt").write_text(content)
+
+    trashed = []
+    import send2trash
+    monkeypatch.setattr(send2trash, "send2trash", lambda p: trashed.append(Path(p).name))
+
+    resp = client.post(
+        "/api/duplicates/trash-all",
+        json={"workspace_path": str(workspace)}
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert data["trashed_count"] == 2
+    # Exactly 2 redundant copies trashed, 1 original kept
+    assert len(trashed) == 2
+    assert "keep_this.txt" not in trashed
+
+
+def test_export_actions_endpoint_csv_and_json(client_and_workspace):
+    client, _ = client_and_workspace
+
+    # Export as CSV
+    resp_csv = client.get("/api/actions/export?format=csv")
+    assert resp_csv.status_code == 200
+    assert "text/csv" in resp_csv.headers["content-type"]
+    assert "Action Type" in resp_csv.text
+
+    # Export as JSON
+    resp_json = client.get("/api/actions/export?format=json")
+    assert resp_json.status_code == 200
+    assert "application/json" in resp_json.headers["content-type"]
+    assert isinstance(resp_json.json(), list)
+
+
+
+
+

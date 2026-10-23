@@ -63,6 +63,16 @@ def test_destination_collision_prevention(tmp_path: Path):
         check_collision_and_preconditions(src, dst, ActionType.MOVE_FILE)
 
 
+def test_forbidden_system_subdirectories_are_rejected(tmp_path: Path):
+    system_dir = Path("/usr/local")
+    if not system_dir.exists():
+        pytest.skip("/usr/local is not available on this runner")
+
+    with pytest.raises(WorkspaceBoundaryError):
+        from backend.app.security.paths import validate_new_workspace_path
+        validate_new_workspace_path(str(system_dir))
+
+
 def test_resolve_workspace_relative_to_allowed_root(tmp_path: Path, monkeypatch):
     allowed_root = tmp_path / "allowed_workspace"
     nested = allowed_root / "nested"

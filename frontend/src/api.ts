@@ -8,9 +8,11 @@ import {
   SystemHealth,
   WorkspaceItem,
   WorkspaceFilesResponse,
+  ProjectInspectionResult,
+  TrashAllResponse,
 } from './types';
 
-const API_BASE = '/api';
+const API_BASE = 'http://127.0.0.1:8000/api';
 
 export async function fetchHealth(): Promise<SystemHealth> {
   const res = await fetch(`${API_BASE}/health`);
@@ -123,7 +125,8 @@ export async function createWorkflow(
   name: string,
   query: string,
   description?: string,
-  workspacePath?: string
+  workspacePath?: string,
+  scheduleCron?: string
 ): Promise<WorkflowItem> {
   const res = await fetch(`${API_BASE}/workflows`, {
     method: 'POST',
@@ -133,6 +136,7 @@ export async function createWorkflow(
       query,
       description,
       workspace_path: workspacePath || null,
+      schedule_cron: scheduleCron || null,
     }),
   });
   if (!res.ok) {
@@ -149,6 +153,75 @@ export async function runWorkflow(workflowId: string): Promise<TaskExecutionSumm
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || 'Failed to run workflow');
+  }
+  return res.json();
+}
+
+export async function deleteWorkflow(workflowId: string): Promise<{ status: string; workflow_id: string }> {
+  const res = await fetch(`${API_BASE}/workflows/${workflowId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to delete workflow');
+  }
+  return res.json();
+}
+
+export async function toggleWorkflow(workflowId: string): Promise<WorkflowItem> {
+  const res = await fetch(`${API_BASE}/workflows/${workflowId}/toggle`, {
+    method: 'PATCH',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to toggle workflow');
+  }
+  return res.json();
+}
+
+export async function trashDuplicate(
+  filePath: string,
+  workspacePath?: string
+): Promise<{ status: string; path: string; message: string }> {
+  const res = await fetch(`${API_BASE}/duplicates/trash`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_path: filePath, workspace_path: workspacePath || null }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to trash file');
+  }
+  return res.json();
+}
+
+export async function trashAllDuplicates(
+  workspacePath?: string
+): Promise<TrashAllResponse> {
+  const res = await fetch(`${API_BASE}/duplicates/trash-all`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_path: workspacePath || null }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to trash duplicates');
+  }
+  return res.json();
+}
+
+export async function inspectProject(
+  path = '.',
+  workspacePath?: string
+): Promise<ProjectInspectionResult> {
+  const params = new URLSearchParams({ path });
+  if (workspacePath) {
+    params.set('workspace_path', workspacePath);
+  }
+  const res = await fetch(`${API_BASE}/project/inspect?${params.toString()}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to inspect project');
   }
   return res.json();
 }

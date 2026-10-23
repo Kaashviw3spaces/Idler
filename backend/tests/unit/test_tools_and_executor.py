@@ -104,3 +104,50 @@ def test_plan_executor(tmp_path: Path):
     assert summary.failed_actions == 0
     assert (workspace / "Documents" / "invoice.pdf").exists()
 
+
+def test_project_inspector_tool(tmp_path: Path):
+    workspace_root = tmp_path / "workspace"
+    workspace_root.mkdir()
+    proj_dir = workspace_root / "my_python_project"
+    proj_dir.mkdir()
+    (proj_dir / "pyproject.toml").write_text('[project]\nname = "demo"\n')
+    (proj_dir / "main.py").write_text('print("hello")\n')
+    (proj_dir / "utils.py").write_text('def add(a, b): return a + b\n')
+    (proj_dir / "README.md").write_text("# Demo Project\nThis is a sample project.\n")
+
+    from backend.app.tools.project import inspect_project
+    res = inspect_project("my_python_project", workspace_root)
+
+    assert res.project_type == "python"
+    assert res.total_files == 4
+    assert res.readme_snippet is not None
+    assert "Demo Project" in res.readme_snippet
+    assert res.languages.get("python") == 2
+    assert "pyproject.toml" in res.key_files
+    assert "main.py" in res.key_files
+
+
+def test_plan_executor_summarize_project_action(tmp_path: Path):
+    workspace_root = tmp_path / "workspace"
+    workspace_root.mkdir()
+    proj_dir = workspace_root / "node_app"
+    proj_dir.mkdir()
+    (proj_dir / "package.json").write_text('{"name": "test"}')
+    (proj_dir / "index.js").write_text('console.log("hi");')
+
+    plan = [
+        ActionPlan(
+            type=ActionType.SUMMARIZE_PROJECT,
+            source="node_app",
+            reason="Summarize repo",
+        )
+    ]
+    executor = PlanExecutor(workspace_root=workspace_root)
+    summary = executor.execute_plan(task_id="task-proj-1", actions=plan)
+
+    assert summary.status == TaskStatus.COMPLETED
+    assert summary.completed_actions == 1
+    assert "NODE" in summary.results[0].message.upper()
+
+
+
