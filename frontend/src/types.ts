@@ -90,6 +90,12 @@ export interface WorkspaceFilePreview {
   size_bytes: number;
 }
 
+export interface WorkspaceSubdirItem {
+  name: string;
+  path: string;
+  files_count: number;
+}
+
 export interface WorkspaceItem {
   name: string;
   path: string;
@@ -97,12 +103,16 @@ export interface WorkspaceItem {
   total_size_bytes: number;
   preview: WorkspaceFilePreview[];
   is_removable?: boolean;
+  subdirectories?: WorkspaceSubdirItem[];
+  folder_counts?: Record<string, number>;
 }
 
 export interface WorkspaceFilesResponse {
   workspace_path: string;
   total_files: number;
   total_size_bytes: number;
+  subdirectories?: string[];
+  folder_counts?: Record<string, number>;
   files: WorkspaceFilePreview[];
 }
 

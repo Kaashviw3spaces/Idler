@@ -141,6 +141,10 @@ export default function App() {
   const [liveFiles, setLiveFiles] = useState<WorkspaceFilePreview[]>([]);
   const [fileFilter, setFileFilter] = useState('');
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [selectedSubdirFilter, setSelectedSubdirFilter] = useState<string>('all');
+  const [groupBySubfolder, setGroupBySubfolder] = useState<boolean>(true);
+  const [workspaceSubdirs, setWorkspaceSubdirs] = useState<string[]>([]);
+  const [workspaceFolderCounts, setWorkspaceFolderCounts] = useState<Record<string, number>>({});
   const [customPath, setCustomPath] = useState('');
   const [customName, setCustomName] = useState('');
   const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
@@ -232,8 +236,12 @@ export default function App() {
     try {
       const data = await api.fetchWorkspaceFiles(path);
       setLiveFiles(data.files);
+      setWorkspaceSubdirs(data.subdirectories || []);
+      setWorkspaceFolderCounts(data.folder_counts || {});
     } catch {
       setLiveFiles([]);
+      setWorkspaceSubdirs([]);
+      setWorkspaceFolderCounts({});
     } finally {
       setIsLoadingFiles(false);
     }
@@ -644,12 +652,37 @@ export default function App() {
   }
 
   const filteredLiveFiles = useMemo(() => {
-    if (!fileFilter.trim()) return liveFiles;
+    let files = liveFiles;
+    if (selectedSubdirFilter !== 'all') {
+      if (selectedSubdirFilter === '(root)') {
+        files = files.filter((f) => !f.relative_path.includes('/'));
+      } else {
+        files = files.filter((f) => {
+          const parts = f.relative_path.split('/');
+          return parts.length > 1 && parts[0] === selectedSubdirFilter;
+        });
+      }
+    }
+    if (!fileFilter.trim()) return files;
     const q = fileFilter.toLowerCase();
-    return liveFiles.filter(
-      (f) => f.name.toLowerCase().includes(q) || f.category.toLowerCase().includes(q)
+    return files.filter(
+      (f) =>
+        f.name.toLowerCase().includes(q) ||
+        f.relative_path.toLowerCase().includes(q) ||
+        f.category.toLowerCase().includes(q)
     );
-  }, [liveFiles, fileFilter]);
+  }, [liveFiles, selectedSubdirFilter, fileFilter]);
+
+  const groupedLiveFiles = useMemo(() => {
+    const groups: Record<string, WorkspaceFilePreview[]> = {};
+    for (const f of filteredLiveFiles) {
+      const parts = f.relative_path.split('/');
+      const folder = parts.length > 1 ? parts[0] : '(root)';
+      if (!groups[folder]) groups[folder] = [];
+      groups[folder].push(f);
+    }
+    return groups;
+  }, [filteredLiveFiles]);
 
   const filteredActions = actions.filter((act) => {
     if (ledgerFilter === 'completed') return act.status === 'completed' && !act.is_undone;
@@ -961,13 +994,20 @@ export default function App() {
                     padding: '8px 12px',
                     borderRadius: '8px',
                     fontSize: '14px',
-                    minWidth: '260px'
+                    minWidth: '280px'
                   }}
                 >
                   {workspaces.map((ws, idx) => (
-                    <option key={idx} value={ws.path}>
-                      {ws.name} ({ws.path})
-                    </option>
+                    <React.Fragment key={idx}>
+                      <option value={ws.path} style={{ fontWeight: '600' }}>
+                        📂 {ws.name} ({ws.files_count} files)
+                      </option>
+                      {ws.subdirectories?.map((sub, sIdx) => (
+                        <option key={`${idx}-${sIdx}`} value={sub.path} style={{ color: '#38bdf8' }}>
+                          &nbsp;&nbsp;&nbsp;&nbsp;↳ 📁 {sub.name} ({sub.files_count} files)
+                        </option>
+                      ))}
+                    </React.Fragment>
                   ))}
                 </select>
                 <button
@@ -992,35 +1032,171 @@ export default function App() {
               </div>
             </div>
 
+            {/* Subfolders Navigation Pills */}
+            {(workspaceSubdirs.length > 0 || Object.keys(workspaceFolderCounts).length > 1) && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                flexWrap: 'wrap',
+                marginBottom: '12px',
+                padding: '8px 12px',
+                background: '#1e293b',
+                borderRadius: '8px',
+                border: '1px solid #334155'
+              }}>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', marginRight: '4px' }}>
+                  Subfolders:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSubdirFilter('all')}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: selectedSubdirFilter === 'all' ? '#2563eb' : '#0f172a',
+                    color: selectedSubdirFilter === 'all' ? '#ffffff' : '#94a3b8'
+                  }}
+                >
+                  All ({liveFiles.length})
+                </button>
+                {workspaceSubdirs.map((subdir) => {
+                  const count = workspaceFolderCounts[subdir] ?? 0;
+                  const isSelected = selectedSubdirFilter === subdir;
+                  return (
+                    <button
+                      key={subdir}
+                      type="button"
+                      onClick={() => setSelectedSubdirFilter(isSelected ? 'all' : subdir)}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        border: isSelected ? '1px solid #38bdf8' : '1px solid #334155',
+                        cursor: 'pointer',
+                        background: isSelected ? '#1e3a8a' : '#0f172a',
+                        color: isSelected ? '#93c5fd' : '#cbd5e1',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <span>📁 {subdir}</span>
+                      <span style={{ color: isSelected ? '#ffffff' : '#64748b', fontSize: '10px' }}>({count})</span>
+                    </button>
+                  );
+                })}
+                {workspaceFolderCounts['(root)'] !== undefined && workspaceFolderCounts['(root)'] > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSubdirFilter(selectedSubdirFilter === '(root)' ? 'all' : '(root)')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      border: selectedSubdirFilter === '(root)' ? '1px solid #38bdf8' : '1px solid #334155',
+                      cursor: 'pointer',
+                      background: selectedSubdirFilter === '(root)' ? '#1e3a8a' : '#0f172a',
+                      color: selectedSubdirFilter === '(root)' ? '#93c5fd' : '#94a3b8'
+                    }}
+                  >
+                    (root) ({workspaceFolderCounts['(root)']})
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Live files preview list */}
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
                 <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-                  {filteredLiveFiles.length} of {liveFiles.length} file(s) currently detected on your computer:
+                  {filteredLiveFiles.length} of {liveFiles.length} file(s) in {selectedSubdirFilter === 'all' ? 'all subfolders' : `folder "${selectedSubdirFilter}"`}:
                 </span>
-                <input
-                  type="text"
-                  placeholder="Filter files (e.g. .pdf, invoice)..."
-                  value={fileFilter}
-                  onChange={(e) => setFileFilter(e.target.value)}
-                  style={{
-                    background: '#1e293b',
-                    color: '#e2e8f0',
-                    border: '1px solid #334155',
-                    borderRadius: '6px',
-                    padding: '3px 8px',
-                    fontSize: '12px',
-                    width: '200px'
-                  }}
-                />
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setGroupBySubfolder(!groupBySubfolder)}
+                    style={{
+                      background: '#1e293b',
+                      border: '1px solid #334155',
+                      color: '#cbd5e1',
+                      borderRadius: '6px',
+                      padding: '3px 8px',
+                      fontSize: '11px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {groupBySubfolder ? 'View Flat' : 'Group by Folder'}
+                  </button>
+                  <input
+                    type="text"
+                    placeholder="Filter files (e.g. .pptx, sheet)..."
+                    value={fileFilter}
+                    onChange={(e) => setFileFilter(e.target.value)}
+                    style={{
+                      background: '#1e293b',
+                      color: '#e2e8f0',
+                      border: '1px solid #334155',
+                      borderRadius: '6px',
+                      padding: '3px 8px',
+                      fontSize: '12px',
+                      width: '200px'
+                    }}
+                  />
+                </div>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '110px', overflowY: 'auto' }}>
-                {filteredLiveFiles.length === 0 ? (
-                  <span style={{ fontSize: '13px', color: '#64748b' }}>
-                    {liveFiles.length === 0 ? 'No files found in this folder.' : 'No files match the filter.'}
-                  </span>
-                ) : (
-                  filteredLiveFiles.map((f, i) => (
+
+              {filteredLiveFiles.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '13px' }}>
+                  {liveFiles.length === 0 ? 'No files found in this workspace.' : 'No files match the filter.'}
+                </div>
+              ) : groupBySubfolder ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {Object.entries(groupedLiveFiles).map(([folderName, filesInFolder]) => (
+                    <div key={folderName} style={{
+                      background: '#1e293b',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      border: '1px solid #334155'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#38bdf8' }}>
+                          📁 {folderName}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>({filesInFolder.length} file{filesInFolder.length > 1 ? 's' : ''})</span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {filesInFolder.map((f, i) => (
+                          <span key={i} style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: '#0f172a',
+                            color: '#e2e8f0',
+                            border: '1px solid #334155',
+                            padding: '3px 7px',
+                            borderRadius: '5px',
+                            fontSize: '11px',
+                            fontFamily: 'monospace'
+                          }}>
+                            <File size={11} color="#38bdf8" />
+                            <span>{f.name}</span>
+                            <span style={{ color: '#64748b', fontSize: '10px' }}>({f.category})</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '140px', overflowY: 'auto' }}>
+                  {filteredLiveFiles.map((f, i) => (
                     <span key={i} style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -1034,12 +1210,12 @@ export default function App() {
                       fontFamily: 'monospace'
                     }}>
                       <File size={12} color="#38bdf8" />
-                      <span>{f.name}</span>
+                      <span>{f.relative_path || f.name}</span>
                       <span style={{ color: '#64748b', fontSize: '11px' }}>({f.category})</span>
                     </span>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -2351,6 +2527,42 @@ export default function App() {
                       </span>
                     ))}
                   </div>
+
+                  {/* Subfolders in this workspace */}
+                  {ws.subdirectories && ws.subdirectories.length > 0 && (
+                    <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #334155' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8' }}>
+                        Subfolders & Categories in this Workspace ({ws.subdirectories.length}):
+                      </span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+                        {ws.subdirectories.map((sub, sIdx) => {
+                          const isActiveSub = selectedWorkspace === sub.path;
+                          return (
+                            <button
+                              key={sIdx}
+                              onClick={() => { setSelectedWorkspace(sub.path); setTab('planner'); }}
+                              title={`Focus on folder "${sub.name}" in Planner`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '4px 10px',
+                                background: isActiveSub ? '#1e3a8a' : '#0f172a',
+                                border: isActiveSub ? '1px solid #38bdf8' : '1px solid #334155',
+                                borderRadius: '6px',
+                                color: isActiveSub ? '#ffffff' : '#cbd5e1',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <span>📁 {sub.name}</span>
+                              <span style={{ color: '#38bdf8', fontSize: '11px' }}>({sub.files_count} files)</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

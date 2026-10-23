@@ -75,21 +75,32 @@ def list_workspaces(db: Session = Depends(get_db)):
         ws_str = str(ws)
         if ws_str not in seen_paths and ws.exists() and ws.is_dir():
             seen_paths.add(ws_str)
-            scan = scan_directory(".", ws, recursive=False, max_files=50)
+            scan = scan_directory(".", ws, recursive=True, max_files=1000)
 
             custom_record = db_workspaces.get(ws_str)
             display_name = custom_record.name if custom_record else (ws.name or ws_str)
+
+            subdirs_info = []
+            for sub_name in scan.subdirectories:
+                sub_path = ws / sub_name
+                subdirs_info.append({
+                    "name": sub_name,
+                    "path": str(sub_path),
+                    "files_count": scan.folder_counts.get(sub_name, 0),
+                })
 
             result.append({
                 "name": display_name,
                 "path": ws_str,
                 "files_count": scan.total_files,
                 "total_size_bytes": scan.total_size_bytes,
+                "subdirectories": subdirs_info,
+                "folder_counts": scan.folder_counts,
                 "preview": [f.model_dump() for f in scan.files[:10]],
                 "is_removable": ws_str in db_workspaces,
             })
 
-            # Only auto-discover immediate subdirectories for internal test_workspace fixture
+            # For test_workspace fixture, also retain immediate subfolders as direct top-level workspace options
             if "test_workspace" in ws_str:
                 try:
                     for sub in ws.iterdir():
@@ -102,6 +113,8 @@ def list_workspaces(db: Session = Depends(get_db)):
                                 "path": sub_str,
                                 "files_count": sub_scan.total_files,
                                 "total_size_bytes": sub_scan.total_size_bytes,
+                                "subdirectories": [],
+                                "folder_counts": {},
                                 "preview": [f.model_dump() for f in sub_scan.files[:10]],
                                 "is_removable": False,
                             })
@@ -174,11 +187,13 @@ def get_workspace_files(path: Optional[str] = Query(default=None)):
     """
     try:
         ws = resolve_workspace(path)
-        scan = scan_directory(".", ws, recursive=True, max_files=100)
+        scan = scan_directory(".", ws, recursive=True, max_files=1000)
         return {
             "workspace_path": str(ws),
             "total_files": scan.total_files,
             "total_size_bytes": scan.total_size_bytes,
+            "subdirectories": scan.subdirectories,
+            "folder_counts": scan.folder_counts,
             "files": [f.model_dump() for f in scan.files],
         }
     except Exception as e:

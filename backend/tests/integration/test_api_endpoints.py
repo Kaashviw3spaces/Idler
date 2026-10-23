@@ -387,6 +387,61 @@ def test_remove_action_from_plan(client_and_workspace):
     assert (workspace / "keep_me_in_root.pdf").exists()
 
 
+def test_subdirectories_visibility_in_workspace_and_files(client_and_workspace):
+    client, workspace = client_and_workspace
+
+    # Create subfolders like Idler makes: Presentations, Spreadsheets, Images
+    pres_dir = workspace / "Presentations"
+    pres_dir.mkdir()
+    (pres_dir / "deck.pptx").write_text("Slide Deck")
+    (pres_dir / "keynote.key").write_text("Keynote")
+
+    sheet_dir = workspace / "Spreadsheets"
+    sheet_dir.mkdir()
+    (sheet_dir / "budget.xlsx").write_text("Budget")
+
+    img_dir = workspace / "Images"
+    img_dir.mkdir()
+    (img_dir / "photo.png").write_text("Photo PNG")
+
+    (workspace / "root_file.txt").write_text("Root file")
+
+    # 1. Test /api/workspaces returns subdirectories and counts
+    ws_resp = client.get("/api/workspaces")
+    assert ws_resp.status_code == 200
+    workspaces = ws_resp.json()
+    root_ws = next(w for w in workspaces if w["path"] == str(workspace))
+
+    sub_names = [s["name"] for s in root_ws["subdirectories"]]
+    assert "Presentations" in sub_names
+    assert "Spreadsheets" in sub_names
+    assert "Images" in sub_names
+
+    pres_sub = next(s for s in root_ws["subdirectories"] if s["name"] == "Presentations")
+    assert pres_sub["files_count"] == 2
+
+    # 2. Test /api/workspace/files returns subdirectories and folder_counts
+    files_resp = client.get(f"/api/workspace/files?path={workspace}")
+    assert files_resp.status_code == 200
+    files_data = files_resp.json()
+    assert files_data["total_files"] == 5
+    assert set(files_data["subdirectories"]) == {"Images", "Presentations", "Spreadsheets"}
+    assert files_data["folder_counts"]["Presentations"] == 2
+    assert files_data["folder_counts"]["Spreadsheets"] == 1
+    assert files_data["folder_counts"]["Images"] == 1
+    assert files_data["folder_counts"]["(root)"] == 1
+
+    # 3. Test scanning specifically a subfolder: /api/workspace/files?path=.../Presentations
+    sub_files_resp = client.get(f"/api/workspace/files?path={pres_dir}")
+    assert sub_files_resp.status_code == 200
+    sub_files_data = sub_files_resp.json()
+    assert sub_files_data["total_files"] == 2
+    names = [f["name"] for f in sub_files_data["files"]]
+    assert "deck.pptx" in names
+    assert "keynote.key" in names
+
+
+
 
 
 

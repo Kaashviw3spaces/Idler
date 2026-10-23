@@ -1,9 +1,13 @@
 import os
 from pathlib import Path
-from typing import List
-from pydantic import BaseModel
+from typing import Dict, List
+from pydantic import BaseModel, Field
 from backend.app.security.paths import validate_and_resolve_path, to_relative_path
 from backend.app.tools.classify import classify_file_by_extension
+
+IGNORED_SCAN_DIRS = {
+    "node_modules", "venv", ".venv", "env", "__pycache__", ".git", ".next", "dist", "build", ".cache"
+}
 
 
 class ScannedFileItem(BaseModel):
@@ -21,17 +25,20 @@ class DirectoryScanResult(BaseModel):
     total_size_bytes: int
     truncated: bool
     files: List[ScannedFileItem]
+    subdirectories: List[str] = Field(default_factory=list)
+    folder_counts: Dict[str, int] = Field(default_factory=dict)
 
 
 def scan_directory(
     directory_path: str,
     workspace_root: Path,
     recursive: bool = True,
-    max_files: int = 500
+    max_files: int = 1000
 ) -> DirectoryScanResult:
     """
     Safely scans a directory within the workspace up to max_files.
     Uses resilient scanning so individual permission errors never abort the scan.
+    Skips application bundles (.app) and junk development/cache directories.
     """
     resolved_dir = validate_and_resolve_path(directory_path, workspace_root, must_exist=True)
     if not resolved_dir.is_dir():
@@ -43,10 +50,8 @@ def scan_directory(
 
     if not recursive:
         try:
-            with os.scandir(resolved_dir) as entries:
-                for entry in entries:
-                    if entry.name.startswith("."):
-                        continue
+            with os.scandir(resolved_dir) as it:
+                for entry in it:
                     try:
                         if entry.is_file(follow_symlinks=False):
                             if len(files) >= max_files:
@@ -74,8 +79,13 @@ def scan_directory(
     else:
         # Use os.walk with error handler so unreadable subdirs don't abort scanning
         for root, dirs, filenames in os.walk(resolved_dir, topdown=True, onerror=lambda err: None):
-            # Prune hidden dot-directories in-place
-            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            # Prune hidden dot-directories, macOS app bundles, and package junk in-place
+            dirs[:] = [
+                d for d in dirs
+                if not d.startswith(".")
+                and not d.endswith(".app")
+                and d.lower() not in IGNORED_SCAN_DIRS
+            ]
 
             for filename in filenames:
                 if filename.startswith("."):
@@ -106,11 +116,39 @@ def scan_directory(
             if truncated:
                 break
 
+    # Compute subdirectories and folder counts inside this directory
+    folder_counts: Dict[str, int] = {}
+    for f in files:
+        rel_parts = Path(f.relative_path).parts
+        folder_name = rel_parts[0] if len(rel_parts) > 1 else "(root)"
+        folder_counts[folder_name] = folder_counts.get(folder_name, 0) + 1
+
+    subdirs = [f for f in sorted(folder_counts.keys()) if f != "(root)"]
+
+    # Also discover any subdirectories directly in resolved_dir that might have 0 scanned files
+    try:
+        with os.scandir(resolved_dir) as entries:
+            for e in entries:
+                if (
+                    e.is_dir(follow_symlinks=False)
+                    and not e.name.startswith(".")
+                    and not e.name.endswith(".app")
+                    and e.name.lower() not in IGNORED_SCAN_DIRS
+                ):
+                    if e.name not in subdirs:
+                        subdirs.append(e.name)
+                        if e.name not in folder_counts:
+                            folder_counts[e.name] = 0
+    except (OSError, PermissionError):
+        pass
+    subdirs.sort()
+
     return DirectoryScanResult(
         scanned_path=to_relative_path(resolved_dir, workspace_root),
         total_files=len(files),
         total_size_bytes=total_size,
         truncated=truncated,
         files=files,
+        subdirectories=subdirs,
+        folder_counts=folder_counts,
     )
-
