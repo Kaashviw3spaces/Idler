@@ -24,17 +24,23 @@ if (!gotTheLock) {
 }
 
 function getTrayIcon() {
+  const fs = require('fs');
+  const colorTrayPath = path.join(__dirname, 'assets', 'tray@2x.png');
   const templatePath = path.join(__dirname, 'assets', 'trayTemplate.png');
+
+  if (fs.existsSync(colorTrayPath)) {
+    const icon = nativeImage.createFromPath(colorTrayPath);
+    if (!icon.isEmpty()) {
+      return icon.resize({ width: 22, height: 22 });
+    }
+  }
+
   let icon = nativeImage.createFromPath(templatePath);
   if (icon.isEmpty()) {
-    // 16x16 fallback data URI
     const fallbackDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAAMElEQVR42mNkIAAYCQlYqGkeNYx6ZEAOGhgYGBghfAawGkYNY9SM0YyG6gEMDAAAK1gCBd3P+GMAAAAASUVORK5CYII=';
     icon = nativeImage.createFromDataURL(fallbackDataUri);
   }
-  if (process.platform === 'darwin') {
-    icon.setTemplateImage(true);
-  }
-  return icon;
+  return icon.resize({ width: 22, height: 22 });
 }
 
 function showWindow() {
