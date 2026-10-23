@@ -91,10 +91,18 @@ export interface WorkspaceFilePreview {
 }
 
 export interface WorkspaceItem {
+  name: string;
   path: string;
   files_count: number;
   total_size_bytes: number;
   preview: WorkspaceFilePreview[];
+}
+
+export interface WorkspaceFilesResponse {
+  workspace_path: string;
+  total_files: number;
+  total_size_bytes: number;
+  files: WorkspaceFilePreview[];
 }
 
 export interface SystemHealth {

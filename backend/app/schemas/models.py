@@ -40,6 +40,11 @@ class TaskCreateRequest(BaseModel):
     parameters: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
+class WorkspaceRegisterRequest(BaseModel):
+    path: str = Field(..., min_length=1, description="Absolute or home-relative path on local computer")
+    name: Optional[str] = Field(None, description="Optional friendly name for this workspace")
+
+
 class ActionPlan(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     type: ActionType

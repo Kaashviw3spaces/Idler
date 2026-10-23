@@ -23,11 +23,68 @@ class InvalidPathError(SecurityException):
     pass
 
 
+FORBIDDEN_SYSTEM_PATHS = {
+    Path("/"),
+    Path("/etc"),
+    Path("/bin"),
+    Path("/sbin"),
+    Path("/usr"),
+    Path("/System"),
+    Path("/Library"),
+    Path("/var"),
+    Path("/dev"),
+    Path("/private"),
+}
+
+
+def validate_new_workspace_path(path_str: str) -> Path:
+    """
+    Validates a path on the local computer before adding it to allowed workspaces.
+    1. Must exist and be a directory.
+    2. Must not be a forbidden system directory.
+    3. Resolves symlinks and returns absolute canonical Path.
+    """
+    clean_str = path_str.strip()
+    if not clean_str:
+        raise InvalidPathError("Workspace path cannot be empty.")
+
+    candidate = Path(clean_str).expanduser().resolve()
+    if not candidate.exists():
+        raise FileNotFoundError(f"Directory does not exist on your computer: '{candidate}'")
+    if not candidate.is_dir():
+        raise NotADirectoryError(f"Path is not a directory: '{candidate}'")
+
+    for forbidden in FORBIDDEN_SYSTEM_PATHS:
+        if candidate == forbidden:
+            raise WorkspaceBoundaryError(f"Directory '{candidate}' is a protected system directory.")
+
+    return candidate
+
+
+def get_all_allowed_roots() -> list[Path]:
+    """Returns all statically configured and dynamically registered allowed workspace roots."""
+    roots = list(settings.get_allowed_workspaces())
+    try:
+        from backend.app.db.database import SessionLocal
+        from backend.app.db.models import WorkspaceDB
+        db = SessionLocal()
+        try:
+            db_workspaces = db.query(WorkspaceDB).all()
+            for w in db_workspaces:
+                p = Path(w.path).resolve()
+                if p not in roots and p.exists() and p.is_dir():
+                    roots.append(p)
+        finally:
+            db.close()
+    except Exception:
+        pass
+    return roots
+
+
 def get_default_workspace() -> Path:
     """Returns the primary allowed workspace path."""
-    workspaces = settings.get_allowed_workspaces()
+    workspaces = get_all_allowed_roots()
     if not workspaces:
-        # Fallback to current working directory test_workspace if none configured
         fallback = Path("./test_workspace").resolve()
         fallback.mkdir(parents=True, exist_ok=True)
         return fallback
@@ -40,7 +97,7 @@ def resolve_workspace(workspace_hint: Optional[str] = None) -> Path:
     Validates and resolves a workspace directory.
     Must match one of the allowed workspaces or be a subfolder of an allowed workspace.
     """
-    allowed_roots = settings.get_allowed_workspaces()
+    allowed_roots = get_all_allowed_roots()
     if not allowed_roots:
         return get_default_workspace()
 

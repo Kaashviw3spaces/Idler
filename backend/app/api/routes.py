@@ -1,4 +1,6 @@
 import json
+import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -7,7 +9,7 @@ from sqlalchemy.orm import Session
 from backend.app.agent.planner import TaskPlanner
 from backend.app.config import settings
 from backend.app.db.database import get_db
-from backend.app.db.models import ActionDB, TaskDB
+from backend.app.db.models import ActionDB, TaskDB, WorkspaceDB
 from backend.app.schemas.models import (
     ActionPlan,
     ActionResult,
@@ -15,12 +17,15 @@ from backend.app.schemas.models import (
     DuplicateScanResult,
     PlanResponse,
     TaskCreateRequest,
+    WorkspaceRegisterRequest,
     TaskExecutionSummary,
     TaskStatus,
 )
 from backend.app.security.paths import (
     resolve_workspace,
     to_relative_path,
+    validate_new_workspace_path,
+    get_all_allowed_roots,
     WorkspaceBoundaryError,
     PathTraversalError,
 )
@@ -50,19 +55,87 @@ def health_check():
 
 
 @router.get("/workspaces")
-def list_workspaces():
-    """Lists allowed workspaces and scans their current root content."""
-    workspaces = settings.get_allowed_workspaces()
+def list_workspaces(db: Session = Depends(get_db)):
+    """Lists allowed workspaces, registered host directories, and key subfolders."""
+    workspaces = get_all_allowed_roots()
     result = []
+    seen_paths = set()
+
     for ws in workspaces:
-        scan = scan_directory(".", ws, recursive=False, max_files=50)
-        result.append({
-            "path": str(ws),
-            "files_count": scan.total_files,
-            "total_size_bytes": scan.total_size_bytes,
-            "preview": [f.model_dump() for f in scan.files[:10]],
-        })
+        if str(ws) not in seen_paths and ws.exists() and ws.is_dir():
+            seen_paths.add(str(ws))
+            scan = scan_directory(".", ws, recursive=False, max_files=50)
+            result.append({
+                "name": ws.name or str(ws),
+                "path": str(ws),
+                "files_count": scan.total_files,
+                "total_size_bytes": scan.total_size_bytes,
+                "preview": [f.model_dump() for f in scan.files[:10]],
+            })
+
+            # Also discover immediate subdirectories if present (e.g. Downloads, College, Projects)
+            try:
+                for sub in ws.iterdir():
+                    if sub.is_dir() and not sub.name.startswith(".") and str(sub) not in seen_paths:
+                        seen_paths.add(str(sub))
+                        sub_scan = scan_directory(".", sub, recursive=False, max_files=50)
+                        result.append({
+                            "name": f"{ws.name}/{sub.name}",
+                            "path": str(sub),
+                            "files_count": sub_scan.total_files,
+                            "total_size_bytes": sub_scan.total_size_bytes,
+                            "preview": [f.model_dump() for f in sub_scan.files[:10]],
+                        })
+            except (OSError, PermissionError):
+                pass
+
     return result
+
+
+@router.post("/workspaces")
+def register_workspace(req: WorkspaceRegisterRequest, db: Session = Depends(get_db)):
+    """
+    Registers a local directory on your computer into the allowed workspaces allowlist.
+    Validates that the directory exists and is not a protected system path.
+    """
+    try:
+        resolved = validate_new_workspace_path(req.path)
+        existing = db.query(WorkspaceDB).filter(WorkspaceDB.path == str(resolved)).first()
+        if existing:
+            return {"status": "exists", "path": str(resolved), "name": existing.name}
+
+        name = req.name or resolved.name or str(resolved)
+        ws_record = WorkspaceDB(
+            id=f"ws-{str(uuid.uuid4())[:8]}",
+            name=name,
+            path=str(resolved),
+            created_at=datetime.utcnow(),
+        )
+        db.add(ws_record)
+        db.commit()
+        db.refresh(ws_record)
+        return {"status": "registered", "path": str(resolved), "name": name}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/workspace/files")
+def get_workspace_files(path: Optional[str] = Query(default=None)):
+    """
+    Scans and returns the current files on disk in the selected workspace.
+    Used for live workspace preview before planning.
+    """
+    try:
+        ws = resolve_workspace(path)
+        scan = scan_directory(".", ws, recursive=True, max_files=100)
+        return {
+            "workspace_path": str(ws),
+            "total_files": scan.total_files,
+            "total_size_bytes": scan.total_size_bytes,
+            "files": [f.model_dump() for f in scan.files],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/plan", response_model=PlanResponse)

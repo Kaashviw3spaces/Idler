@@ -14,7 +14,9 @@ import {
   XCircle,
   RefreshCw,
   FolderOpen,
-  FileCheck
+  FileCheck,
+  PlusCircle,
+  File
 } from 'lucide-react';
 import {
   PlanResponse,
@@ -24,6 +26,7 @@ import {
   WorkflowItem,
   SystemHealth,
   WorkspaceItem,
+  WorkspaceFilePreview,
 } from './types';
 import * as api from './api';
 
@@ -42,6 +45,11 @@ export default function App() {
   // Workspace state
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>('');
+  const [liveFiles, setLiveFiles] = useState<WorkspaceFilePreview[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [customPath, setCustomPath] = useState('');
+  const [customName, setCustomName] = useState('');
+  const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
 
   // Planner State
   const [query, setQuery] = useState('');
@@ -71,6 +79,12 @@ export default function App() {
     refreshAll();
   }, []);
 
+  useEffect(() => {
+    if (selectedWorkspace) {
+      loadLiveFiles(selectedWorkspace);
+    }
+  }, [selectedWorkspace]);
+
   async function refreshAll() {
     await loadHealth();
     await loadWorkspaces();
@@ -98,6 +112,18 @@ export default function App() {
       }
     } catch {
       // Backend may be offline
+    }
+  }
+
+  async function loadLiveFiles(path?: string) {
+    setIsLoadingFiles(true);
+    try {
+      const data = await api.fetchWorkspaceFiles(path);
+      setLiveFiles(data.files);
+    } catch {
+      setLiveFiles([]);
+    } finally {
+      setIsLoadingFiles(false);
     }
   }
 
@@ -152,6 +178,9 @@ export default function App() {
       setExecutionSummary(summary);
       await loadActions();
       await loadWorkspaces();
+      if (selectedWorkspace) {
+        await loadLiveFiles(selectedWorkspace);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMsg(msg);
@@ -173,6 +202,9 @@ export default function App() {
       await api.undoAction(actionId);
       await loadActions();
       await loadWorkspaces();
+      if (selectedWorkspace) {
+        await loadLiveFiles(selectedWorkspace);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMsg(msg);
@@ -185,13 +217,31 @@ export default function App() {
     setIsScanningDups(true);
     setErrorMsg(null);
     try {
-      const res = await api.scanDuplicates('.');
+      const res = await api.scanDuplicates('.', selectedWorkspace || undefined);
       setDupResult(res);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMsg(msg);
     } finally {
       setIsScanningDups(false);
+    }
+  }
+
+  async function handleAddCustomWorkspace(e: React.FormEvent) {
+    e.preventDefault();
+    if (!customPath.trim()) return;
+    setErrorMsg(null);
+    setRegisterSuccess(null);
+    try {
+      const res = await api.registerWorkspace(customPath.trim(), customName.trim() || undefined);
+      setRegisterSuccess(`Added workspace "${res.name}" (${res.path})`);
+      setCustomPath('');
+      setCustomName('');
+      await loadWorkspaces();
+      setSelectedWorkspace(res.path);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg);
     }
   }
 
@@ -219,6 +269,9 @@ export default function App() {
       setTab('planner');
       await loadActions();
       await loadWorkspaces();
+      if (selectedWorkspace) {
+        await loadLiveFiles(selectedWorkspace);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMsg(msg);
@@ -268,10 +321,10 @@ export default function App() {
                 padding: '2px 8px',
                 borderRadius: '6px',
                 fontWeight: '600'
-              }}>v0.1.0 MVP</span>
+              }}>Local AI Assistant</span>
             </div>
             <p style={{ color: '#94a3b8', fontSize: '14px' }}>
-              Stop doing repetitive work. Let your local AI handle it safely.
+              Stop doing repetitive work. Let your local AI scan, organize, and reverse actions safely.
             </p>
           </div>
         </div>
@@ -309,7 +362,7 @@ export default function App() {
             color: '#38bdf8'
           }}>
             <Shield size={14} />
-            <span>Guard: <strong>Active</strong></span>
+            <span>Sandbox: <strong>Protected</strong></span>
           </div>
 
           <div style={{
@@ -325,7 +378,7 @@ export default function App() {
           }}>
             <Database size={14} />
             <span>
-              {isBackendOffline ? 'Backend Offline' : (health?.ollama_model ? `Model: ${health.ollama_model}` : 'Model Ready')}
+              {isBackendOffline ? 'Backend Offline' : (health?.ollama_model ? `AI: ${health.ollama_model}` : 'AI Ready')}
             </span>
           </div>
         </div>
@@ -347,7 +400,7 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <AlertTriangle size={20} />
             <div>
-              <strong>FastAPI Backend is Offline:</strong> Make sure the backend server is running via{' '}
+              <strong>FastAPI Backend is Offline:</strong> Run the backend server with:{' '}
               <code style={{ background: '#1e1e2e', padding: '2px 6px', borderRadius: '4px' }}>
                 backend/venv/bin/uvicorn backend.app.main:app --port 8000
               </code>
@@ -412,7 +465,7 @@ export default function App() {
           }}
         >
           <Sparkles size={16} />
-          Agent Planner
+          Scan & Plan
         </button>
 
         <button
@@ -488,13 +541,99 @@ export default function App() {
           }}
         >
           <FolderOpen size={16} />
-          Workspaces
+          Workspaces ({workspaces.length})
         </button>
       </nav>
 
       {/* TAB 1: AGENT PLANNER */}
       {tab === 'planner' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
+          {/* Workspace Target & Live Files Bar */}
+          <div style={{
+            background: '#0f172a',
+            border: '1px solid #1e293b',
+            borderRadius: '14px',
+            padding: '20px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FolderOpen size={18} color="#38bdf8" />
+                <span style={{ fontSize: '15px', fontWeight: '600' }}>Active Folder to Scan on Computer:</span>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <select
+                  value={selectedWorkspace}
+                  onChange={(e) => setSelectedWorkspace(e.target.value)}
+                  style={{
+                    background: '#1e293b',
+                    color: '#ffffff',
+                    border: '1px solid #334155',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    minWidth: '260px'
+                  }}
+                >
+                  {workspaces.map((ws, idx) => (
+                    <option key={idx} value={ws.path}>
+                      {ws.name} ({ws.path})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => loadLiveFiles(selectedWorkspace)}
+                  disabled={isLoadingFiles}
+                  style={{
+                    padding: '8px 14px',
+                    background: '#1e293b',
+                    color: '#cbd5e1',
+                    border: '1px solid #334155',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <RefreshCw size={13} className={isLoadingFiles ? 'spin' : ''} />
+                  Rescan Disk
+                </button>
+              </div>
+            </div>
+
+            {/* Live files preview list */}
+            <div>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>
+                {liveFiles.length} file(s) currently detected on your computer in this directory:
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '110px', overflowY: 'auto' }}>
+                {liveFiles.length === 0 ? (
+                  <span style={{ fontSize: '13px', color: '#64748b' }}>No files found in this folder.</span>
+                ) : (
+                  liveFiles.map((f, i) => (
+                    <span key={i} style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: '#1e293b',
+                      color: '#e2e8f0',
+                      border: '1px solid #334155',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontFamily: 'monospace'
+                    }}>
+                      <File size={12} color="#38bdf8" />
+                      <span>{f.name}</span>
+                      <span style={{ color: '#64748b', fontSize: '11px' }}>({f.category})</span>
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Prompt Input Form */}
           <div style={{
             background: '#0f172a',
@@ -504,10 +643,10 @@ export default function App() {
           }}>
             <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Sparkles size={18} color="#38bdf8" />
-              What would you like Idler to do?
+              What would you like Idler to do with these files?
             </h2>
             <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '16px' }}>
-              Describe your task in plain language. The agent prepares a verified plan, you approve the actions, and anything can be undone.
+              Describe your desired organization in plain English. The agent scans your files, generates a safe plan, and asks for your approval before touching anything.
             </p>
 
             {/* Quick Prompt Chips */}
@@ -538,7 +677,7 @@ export default function App() {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="e.g. Organize PDFs in my test folder by type, and find duplicate files..."
+                  placeholder="e.g. Sort PDFs into Documents, images into Images, and check for duplicates..."
                   style={{
                     flex: 1,
                     padding: '14px 18px',
@@ -566,7 +705,7 @@ export default function App() {
                     gap: '8px'
                   }}
                 >
-                  {isPlanning ? 'Planning...' : 'Generate Plan'}
+                  {isPlanning ? 'Scanning & Planning...' : 'Generate Plan'}
                   <ArrowRight size={18} />
                 </button>
               </div>
@@ -638,7 +777,7 @@ export default function App() {
                       }}
                     >
                       <CheckCircle2 size={16} />
-                      {isExecuting ? 'Executing...' : 'Approve & Execute Plan'}
+                      {isExecuting ? 'Executing Moves on Computer...' : 'Approve & Execute Plan'}
                     </button>
                   )}
                 </div>
@@ -748,7 +887,7 @@ export default function App() {
             <div>
               <h2 style={{ fontSize: '20px', fontWeight: '600' }}>Immutable Action Ledger</h2>
               <p style={{ color: '#94a3b8', fontSize: '14px' }}>
-                Full audit trail of all executed tasks and safe rollbacks.
+                Full audit trail of all executed tasks and safe rollbacks on your computer.
               </p>
             </div>
             
@@ -1092,66 +1231,141 @@ export default function App() {
 
       {/* TAB 5: WORKSPACES */}
       {tab === 'workspaces' && (
-        <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
-          <div style={{ marginBottom: '20px' }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '600' }}>Allowed Workspaces</h2>
-            <p style={{ color: '#94a3b8', fontSize: '14px' }}>
-              Idler's authoritative security layer confines all actions to these allowlisted host directories.
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
+          {/* Register New Local Folder Card */}
+          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <PlusCircle size={18} color="#38bdf8" />
+              Add Local Folder on Your Computer to Idler
+            </h2>
+            <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '16px' }}>
+              Allow Idler to manage and clean up any folder on your computer (e.g. <code>~/Downloads</code>, <code>/Users/kashvi/Desktop/MyFolder</code>).
             </p>
+
+            {registerSuccess && (
+              <div style={{
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid #10b981',
+                color: '#6ee7b7',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                marginBottom: '14px',
+                fontSize: '14px'
+              }}>
+                ✓ {registerSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleAddCustomWorkspace} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                <input
+                  type="text"
+                  placeholder="Local folder path (e.g. ~/Downloads or /Users/kashvi/Downloads)"
+                  value={customPath}
+                  onChange={(e) => setCustomPath(e.target.value)}
+                  style={{
+                    padding: '12px',
+                    borderRadius: '8px',
+                    background: '#1e293b',
+                    border: '1px solid #334155',
+                    color: '#ffffff'
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Friendly name (e.g. My Downloads)"
+                  value={customName}
+                  onChange={(e) => setCustomName(e.target.value)}
+                  style={{
+                    padding: '12px',
+                    borderRadius: '8px',
+                    background: '#1e293b',
+                    border: '1px solid #334155',
+                    color: '#ffffff'
+                  }}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!customPath.trim()}
+                style={{
+                  alignSelf: 'flex-start',
+                  padding: '10px 20px',
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: '600'
+                }}
+              >
+                Allow & Add Folder
+              </button>
+            </form>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {workspaces.map((ws, idx) => (
-              <div key={idx} style={{
-                background: '#1e293b',
-                border: selectedWorkspace === ws.path ? '1px solid #3b82f6' : '1px solid #334155',
-                borderRadius: '10px',
-                padding: '16px'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <div>
-                    <span style={{ fontFamily: 'monospace', fontWeight: '600', color: '#38bdf8' }}>{ws.path}</span>
-                    <span style={{ marginLeft: '12px', fontSize: '13px', color: '#94a3b8' }}>
-                      ({ws.files_count} files, {(ws.total_size_bytes / 1024).toFixed(1)} KB)
-                    </span>
-                  </div>
-                  {selectedWorkspace === ws.path ? (
-                    <span style={{ fontSize: '12px', background: '#1e3a8a', color: '#93c5fd', padding: '3px 8px', borderRadius: '4px' }}>
-                      Active Workspace
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => setSelectedWorkspace(ws.path)}
-                      style={{
-                        padding: '4px 10px',
-                        background: '#374151',
-                        color: '#f9fafb',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '12px'
-                      }}
-                    >
-                      Select
-                    </button>
-                  )}
-                </div>
+          {/* Allowed Workspaces List */}
+          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
+            <div style={{ marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '600' }}>Allowed Workspaces & Folders</h2>
+              <p style={{ color: '#94a3b8', fontSize: '14px' }}>
+                Idler is strictly confined to these directories on your computer.
+              </p>
+            </div>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {ws.preview.map((f, fIdx) => (
-                    <span key={fIdx} style={{
-                      fontSize: '12px',
-                      background: '#0f172a',
-                      color: '#cbd5e1',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      fontFamily: 'monospace'
-                    }}>
-                      {f.name} <span style={{ color: '#64748b' }}>({f.category})</span>
-                    </span>
-                  ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {workspaces.map((ws, idx) => (
+                <div key={idx} style={{
+                  background: '#1e293b',
+                  border: selectedWorkspace === ws.path ? '1px solid #3b82f6' : '1px solid #334155',
+                  borderRadius: '10px',
+                  padding: '16px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <div>
+                      <span style={{ fontWeight: '600', color: '#f8fafc', marginRight: '8px' }}>{ws.name}</span>
+                      <span style={{ fontFamily: 'monospace', fontSize: '13px', color: '#38bdf8' }}>{ws.path}</span>
+                      <span style={{ marginLeft: '12px', fontSize: '13px', color: '#94a3b8' }}>
+                        ({ws.files_count} files, {(ws.total_size_bytes / 1024).toFixed(1)} KB)
+                      </span>
+                    </div>
+                    {selectedWorkspace === ws.path ? (
+                      <span style={{ fontSize: '12px', background: '#1e3a8a', color: '#93c5fd', padding: '3px 8px', borderRadius: '4px' }}>
+                        Active Folder
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setSelectedWorkspace(ws.path)}
+                        style={{
+                          padding: '4px 10px',
+                          background: '#374151',
+                          color: '#f9fafb',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '12px'
+                        }}
+                      >
+                        Set as Active
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {ws.preview.map((f, fIdx) => (
+                      <span key={fIdx} style={{
+                        fontSize: '12px',
+                        background: '#0f172a',
+                        color: '#cbd5e1',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontFamily: 'monospace'
+                      }}>
+                        {f.name} <span style={{ color: '#64748b' }}>({f.category})</span>
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       )}

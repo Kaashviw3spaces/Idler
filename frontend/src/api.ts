@@ -7,6 +7,7 @@ import {
   WorkflowItem,
   SystemHealth,
   WorkspaceItem,
+  WorkspaceFilesResponse,
 } from './types';
 
 const API_BASE = '/api';
@@ -20,6 +21,29 @@ export async function fetchHealth(): Promise<SystemHealth> {
 export async function fetchWorkspaces(): Promise<WorkspaceItem[]> {
   const res = await fetch(`${API_BASE}/workspaces`);
   if (!res.ok) throw new Error('Failed to load workspaces');
+  return res.json();
+}
+
+export async function registerWorkspace(path: string, name?: string): Promise<{ status: string; path: string; name: string }> {
+  const res = await fetch(`${API_BASE}/workspaces`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, name: name || null }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to register workspace');
+  }
+  return res.json();
+}
+
+export async function fetchWorkspaceFiles(path?: string): Promise<WorkspaceFilesResponse> {
+  const url = path ? `${API_BASE}/workspace/files?path=${encodeURIComponent(path)}` : `${API_BASE}/workspace/files`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to fetch workspace files');
+  }
   return res.json();
 }
 
@@ -76,8 +100,12 @@ export async function undoAction(actionId: string): Promise<ActionResult> {
   return res.json();
 }
 
-export async function scanDuplicates(path = '.'): Promise<DuplicateScanResult> {
-  const res = await fetch(`${API_BASE}/duplicates?path=${encodeURIComponent(path)}`);
+export async function scanDuplicates(path = '.', workspacePath?: string): Promise<DuplicateScanResult> {
+  const params = new URLSearchParams({ path });
+  if (workspacePath) {
+    params.set('workspace_path', workspacePath);
+  }
+  const res = await fetch(`${API_BASE}/duplicates?${params.toString()}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || 'Failed to scan duplicates');

@@ -62,3 +62,12 @@ class WorkflowRunDB(Base):
     error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+
+class WorkspaceDB(Base):
+    __tablename__ = "workspaces"
+
+    id = Column(String(64), primary_key=True, index=True)
+    name = Column(String(128), nullable=False)
+    path = Column(String(512), nullable=False, unique=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+

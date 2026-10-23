@@ -3,6 +3,7 @@ from backend.app.schemas.models import (
     ActionStatus,
     TaskStatus,
     TaskCreateRequest,
+    WorkspaceRegisterRequest,
     ActionPlan,
     PlanResponse,
     ActionResult,
