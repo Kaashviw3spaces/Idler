@@ -8,5 +8,7 @@ contextBridge.exposeInMainWorld('idlerDesktop', {
   toggleWindow: () => ipcRenderer.invoke('toggle-window'),
   minimizeToTray: () => ipcRenderer.invoke('minimize-to-tray'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  quitApp: () => ipcRenderer.invoke('quit-app'),
+  openStudio: () => ipcRenderer.invoke('open-studio'),
 });
 

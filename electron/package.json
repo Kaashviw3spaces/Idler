@@ -27,6 +27,7 @@
       ],
       "icon": "assets/icon.png",
       "extendInfo": {
+        "LSUIElement": 1,
         "NSHighResolutionCapable": true
       }
     },

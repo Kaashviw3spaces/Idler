@@ -34,6 +34,7 @@ import {
   playWindowsChime,
   SoundPlatform,
 } from './sound';
+import { CozyPopover } from './CozyPopover';
 import {
   PlanResponse,
   TaskExecutionSummary,
@@ -127,6 +128,12 @@ function notifyUser(title: string, body: string) {
 
 export default function App() {
   const [tab, setTab] = useState<'planner' | 'ledger' | 'duplicates' | 'workflows' | 'projects' | 'workspaces'>('planner');
+  const [viewMode, setViewMode] = useState<'cozy' | 'studio'>(() => {
+    if (typeof window !== 'undefined' && (window.idlerDesktop?.isElectron || window.innerWidth <= 480)) {
+      return 'cozy';
+    }
+    return 'studio';
+  });
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [isBackendOffline, setIsBackendOffline] = useState(false);
   
@@ -724,6 +731,39 @@ export default function App() {
     return true;
   });
 
+  if (viewMode === 'cozy') {
+    return (
+      <div style={{ padding: '8px', minHeight: '100vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'transparent' }}>
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+        <CozyPopover
+          workspaces={workspaces}
+          selectedWorkspace={selectedWorkspace}
+          onSelectWorkspace={setSelectedWorkspace}
+          actions={actions}
+          onRefreshActions={loadActions}
+          onRefreshWorkspaces={loadWorkspaces}
+          soundMode={soundMode}
+          onChangeSoundMode={handleChangeSoundMode}
+          soundMuted={soundMuted}
+          onToggleSoundMute={toggleSoundMute}
+          onOpenStudio={() => {
+            if (window.idlerDesktop?.openStudio) {
+              window.idlerDesktop.openStudio();
+            } else {
+              setViewMode('studio');
+            }
+          }}
+          onQuit={() => {
+            if (window.idlerDesktop?.quitApp) {
+              window.idlerDesktop.quitApp();
+            }
+          }}
+          addToast={addToast}
+        />
+      </div>
+    );
+  }
+
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 20px' }}>
       {/* Header */}
@@ -760,6 +800,25 @@ export default function App() {
                 borderRadius: '6px',
                 fontWeight: '600'
               }}>Local AI Assistant</span>
+              <button
+                onClick={() => setViewMode('cozy')}
+                style={{
+                  marginLeft: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  color: '#38bdf8',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                <span>🦥</span> Cozy Popover Mode
+              </button>
             </div>
             <p style={{ color: '#94a3b8', fontSize: '14px' }}>
               Stop doing repetitive work. Let your local AI scan, organize, and reverse actions safely.

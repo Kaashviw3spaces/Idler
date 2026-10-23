@@ -140,3 +140,19 @@ export interface TrashAllResponse {
   trashed_files: string[];
   message: string;
 }
+
+declare global {
+  interface Window {
+    idlerDesktop?: {
+      isElectron: boolean;
+      platform: string;
+      playNativeChime: (style?: string) => Promise<{ success: boolean }>;
+      showNotification: (title?: string, body?: string) => Promise<{ success: boolean }>;
+      toggleWindow: () => Promise<void>;
+      minimizeToTray: () => Promise<void>;
+      openExternal: (url: string) => Promise<void>;
+      quitApp: () => Promise<void>;
+      openStudio: () => Promise<void>;
+    };
+  }
+}

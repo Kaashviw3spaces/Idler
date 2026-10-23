@@ -10,8 +10,8 @@ let tray = null;
 let mainWindow = null;
 let backendProcess = null;
 
-const DEFAULT_WIDTH = 1000;
-const DEFAULT_HEIGHT = 760;
+const POPOVER_WIDTH = 380;
+const POPOVER_HEIGHT = 610;
 
 // Enforce single instance
 const gotTheLock = app.requestSingleInstanceLock();
@@ -43,19 +43,30 @@ function getTrayIcon() {
   return icon.resize({ width: 22, height: 22 });
 }
 
+function getWindowPosition() {
+  if (!tray || !mainWindow) return { x: 0, y: 0 };
+  const windowBounds = mainWindow.getBounds();
+  const trayBounds = tray.getBounds();
+
+  if (process.platform === 'darwin') {
+    const x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
+    const y = Math.round(trayBounds.y + trayBounds.height + 4);
+    return { x, y };
+  } else {
+    const x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
+    const y = Math.round(trayBounds.y - windowBounds.height - 4);
+    return { x, y };
+  }
+}
+
 function showWindow() {
   if (!mainWindow) {
     createWindow();
     return;
   }
-  if (mainWindow.isMinimized()) {
-    mainWindow.restore();
-  }
+  const { x, y } = getWindowPosition();
+  mainWindow.setPosition(x, y, false);
   mainWindow.show();
-  if (process.platform === 'darwin') {
-    if (app.dock) app.dock.show();
-    app.focus({ steal: true });
-  }
   mainWindow.focus();
 }
 
@@ -73,14 +84,18 @@ function toggleWindow() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: DEFAULT_WIDTH,
-    height: DEFAULT_HEIGHT,
-    minWidth: 640,
-    minHeight: 480,
+    width: POPOVER_WIDTH,
+    height: POPOVER_HEIGHT,
     show: false,
-    center: true,
-    title: 'Idler',
-    titleBarStyle: 'default',
+    frame: false,
+    transparent: true,
+    hasShadow: true,
+    resizable: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    vibrancy: 'popover',
+    visualEffectState: 'active',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -99,34 +114,26 @@ function createWindow() {
   const bundledUiPath = path.join(__dirname, 'frontend_dist', 'index.html');
 
   if (app.isPackaged) {
-    // In packaged app, always load self-contained bundled frontend
     mainWindow.loadFile(bundledUiPath);
   } else {
-    // In local dev, try Vite dev server first, fallback to bundled build
     mainWindow.loadURL('http://localhost:5173').catch(() => {
       mainWindow.loadFile(bundledUiPath);
     });
   }
 
-  // Reveal window as soon as rendered
   mainWindow.once('ready-to-show', () => {
+    const { x, y } = getWindowPosition();
+    mainWindow.setPosition(x, y, false);
     mainWindow.show();
     mainWindow.focus();
-    if (process.platform === 'darwin' && app.dock) {
-      app.dock.show();
-    }
   });
 
-  // Safety fallback: ensure window is visible after 1.2s regardless of event timing
-  setTimeout(() => {
-    if (mainWindow && !mainWindow.isVisible()) {
-      mainWindow.show();
-      mainWindow.focus();
-      if (process.platform === 'darwin' && app.dock) {
-        app.dock.show();
-      }
+  // Auto-hide when user clicks outside the popover window
+  mainWindow.on('blur', () => {
+    if (!mainWindow.webContents.isDevToolsOpened()) {
+      mainWindow.hide();
     }
-  }, 1200);
+  });
 
   // When user clicks the red X close button, hide to tray instead of terminating
   mainWindow.on('close', (event) => {
@@ -235,6 +242,15 @@ ipcMain.handle('minimize-to-tray', () => {
 
 ipcMain.handle('open-external', (e, url) => {
   if (url) shell.openExternal(url);
+});
+
+ipcMain.handle('quit-app', () => {
+  app.isQuitting = true;
+  app.quit();
+});
+
+ipcMain.handle('open-studio', () => {
+  shell.openExternal('http://localhost:5173');
 });
 
 // App Lifecycle
