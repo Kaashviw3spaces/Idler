@@ -24,8 +24,8 @@ def create_png(width: int, height: int, rgba_bytes: bytes) -> bytes:
     png += chunk(b'IEND', b'')
     return png
 
-def draw_folder_template(size: int) -> bytes:
-    """Draw a clean folder template for macOS menu bar (black pixels + alpha)."""
+def draw_sloth_template(size: int) -> bytes:
+    """Draw a clean, cute sloth face template for macOS menu bar (black pixels + alpha)."""
     pixels = bytearray(size * size * 4)
     scale = size / 18.0
 
@@ -37,27 +37,69 @@ def draw_folder_template(size: int) -> bytes:
             pixels[idx + 2] = 0
             pixels[idx + 3] = alpha
 
-    x_min = int(2 * scale)
-    x_max = int(16 * scale)
-    y_min = int(3 * scale)
-    y_tab_max = int(6 * scale)
-    x_tab_max = int(8 * scale)
-    y_body_min = int(5 * scale)
-    y_max = int(15 * scale)
+    cx = size / 2.0 - 0.5
+    cy = size / 2.0
+    rx = 7.0 * scale
+    ry = 6.2 * scale
 
+    # Sloth head: rounded oval silhouette
     for y in range(size):
         for x in range(size):
-            in_tab = (x_min <= x <= x_tab_max) and (y_min <= y <= y_tab_max)
-            in_body = (x_min <= x <= x_max) and (y_body_min <= y <= y_max)
-            if in_tab or in_body:
+            dx = (x - cx) / rx
+            dy = (y - cy) / ry
+            if dx * dx + dy * dy <= 1.0:
                 set_pixel(x, y, 255)
+
+    # Sloth ears: cute small bumps on top left and right
+    for y in range(size):
+        for x in range(size):
+            if math.hypot(x - (cx - 5.0 * scale), y - (cy - 4.5 * scale)) <= 2.0 * scale:
+                set_pixel(x, y, 255)
+            if math.hypot(x - (cx + 5.0 * scale), y - (cy - 4.5 * scale)) <= 2.0 * scale:
+                set_pixel(x, y, 255)
+
+    # Negative space cutouts:
+    # 1. Iconic sloth eye stripes (angled down-outwards)
+    for y in range(size):
+        for x in range(size):
+            # Left eye area
+            lx = x - (cx - 3.2 * scale)
+            ly = y - (cy - 0.5 * scale)
+            rot_lx = lx * math.cos(0.4) + ly * math.sin(0.4)
+            rot_ly = -lx * math.sin(0.4) + ly * math.cos(0.4)
+            if (rot_lx / (1.2 * scale)) ** 2 + (rot_ly / (2.2 * scale)) ** 2 <= 1.0:
+                set_pixel(x, y, 0)
+
+            # Right eye area
+            rx = x - (cx + 3.2 * scale)
+            ry = y - (cy - 0.5 * scale)
+            rot_rx = rx * math.cos(-0.4) + ry * math.sin(-0.4)
+            rot_ry = -rx * math.sin(-0.4) + ry * math.cos(-0.4)
+            if (rot_rx / (1.2 * scale)) ** 2 + (rot_ry / (2.2 * scale)) ** 2 <= 1.0:
+                set_pixel(x, y, 0)
+
+    # 2. Sloth nose
+    for y in range(size):
+        for x in range(size):
+            nx = x - cx
+            ny = y - (cy + 1.8 * scale)
+            if (nx / (1.5 * scale)) ** 2 + (ny / (1.0 * scale)) ** 2 <= 1.0:
+                set_pixel(x, y, 0)
+
+    # 3. Smiling mouth
+    for y in range(size):
+        for x in range(size):
+            mx = x - cx
+            my = y - (cy + 3.4 * scale)
+            if abs(mx) <= 2.0 * scale and abs(my - 0.25 * (mx ** 2) / scale) <= 0.6 * scale:
+                set_pixel(x, y, 0)
 
     return bytes(pixels)
 
 def draw_app_icon(size: int = 512) -> bytes:
-    """Draw a modern rounded app icon badge for macOS/Windows."""
+    """Draw a modern rounded app icon badge for macOS/Windows with cute sloth face."""
     pixels = bytearray(size * size * 4)
-    radius = size * 0.22  # rounded rect corner radius
+    radius = size * 0.22
     margin = size * 0.06
 
     def set_pixel(x, y, r, g, b, a=255):
@@ -68,45 +110,73 @@ def draw_app_icon(size: int = 512) -> bytes:
             pixels[idx + 2] = b
             pixels[idx + 3] = a
 
-    # Pre-render rounded rectangle background with gradient
+    # Gradient background
     for y in range(size):
         for x in range(size):
-            # Check rounded box bounds
             in_x = margin <= x < size - margin
             in_y = margin <= y < size - margin
             if not (in_x and in_y):
                 continue
 
-            # Check corners
             cx = margin + radius if x < margin + radius else (size - margin - radius if x > size - margin - radius else x)
             cy = margin + radius if y < margin + radius else (size - margin - radius if y > size - margin - radius else y)
             dist = math.hypot(x - cx, y - cy)
             if dist > radius:
                 continue
 
-            # Blue to Indigo gradient
             t = y / size
             r = int(14 + (30 - 14) * t)
             g = int(165 + (58 - 165) * t)
             b = int(233 + (138 - 233) * t)
             set_pixel(x, y, r, g, b, 255)
 
-    # Draw stylized white folder in center
-    f_scale = size / 32.0
-    fx_min = int(8 * f_scale)
-    fx_max = int(24 * f_scale)
-    fy_min = int(10 * f_scale)
-    fy_tab_max = int(13 * f_scale)
-    fx_tab_max = int(15 * f_scale)
-    fy_body_min = int(12 * f_scale)
-    fy_max = int(22 * f_scale)
+    # Draw white sloth silhouette in center
+    cx = size / 2.0
+    cy = size / 2.0 + 8
+    scale = size / 36.0
+    rx = 13.0 * scale
+    ry = 11.5 * scale
 
     for y in range(size):
         for x in range(size):
-            in_tab = (fx_min <= x <= fx_tab_max) and (fy_min <= y <= fy_tab_max)
-            in_body = (fx_min <= x <= fx_max) and (fy_body_min <= y <= fy_max)
-            if in_tab or in_body:
+            dx = (x - cx) / rx
+            dy = (y - cy) / ry
+            if dx * dx + dy * dy <= 1.0:
                 set_pixel(x, y, 255, 255, 255, 255)
+            # Ears
+            if math.hypot(x - (cx - 9.0 * scale), y - (cy - 8.5 * scale)) <= 3.8 * scale:
+                set_pixel(x, y, 255, 255, 255, 255)
+            if math.hypot(x - (cx + 9.0 * scale), y - (cy - 8.5 * scale)) <= 3.8 * scale:
+                set_pixel(x, y, 255, 255, 255, 255)
+
+    # Sloth eye patches (dark blue-slate)
+    for y in range(size):
+        for x in range(size):
+            lx = x - (cx - 6.0 * scale)
+            ly = y - (cy - 1.0 * scale)
+            rot_lx = lx * math.cos(0.4) + ly * math.sin(0.4)
+            rot_ly = -lx * math.sin(0.4) + ly * math.cos(0.4)
+            if (rot_lx / (2.4 * scale)) ** 2 + (rot_ly / (4.4 * scale)) ** 2 <= 1.0:
+                set_pixel(x, y, 15, 23, 42, 255)
+
+            rx = x - (cx + 6.0 * scale)
+            ry = y - (cy - 1.0 * scale)
+            rot_rx = rx * math.cos(-0.4) + ry * math.sin(-0.4)
+            rot_ry = -rx * math.sin(-0.4) + ry * math.cos(-0.4)
+            if (rot_rx / (2.4 * scale)) ** 2 + (rot_ry / (4.4 * scale)) ** 2 <= 1.0:
+                set_pixel(x, y, 15, 23, 42, 255)
+
+            # Nose
+            nx = x - cx
+            ny = y - (cy + 3.2 * scale)
+            if (nx / (2.8 * scale)) ** 2 + (ny / (2.0 * scale)) ** 2 <= 1.0:
+                set_pixel(x, y, 15, 23, 42, 255)
+
+            # Mouth
+            mx = x - cx
+            my = y - (cy + 6.2 * scale)
+            if abs(mx) <= 3.8 * scale and abs(my - 0.25 * (mx ** 2) / scale) <= 1.0 * scale:
+                set_pixel(x, y, 15, 23, 42, 255)
 
     return bytes(pixels)
 
@@ -114,19 +184,19 @@ def main():
     assets_dir = Path(__file__).parent / "assets"
     assets_dir.mkdir(parents=True, exist_ok=True)
 
-    # Tray Template PNGs
-    png18 = create_png(18, 18, draw_folder_template(18))
+    # 18x18 sloth trayTemplate.png
+    png18 = create_png(18, 18, draw_sloth_template(18))
     (assets_dir / "trayTemplate.png").write_bytes(png18)
 
-    png36 = create_png(36, 36, draw_folder_template(36))
+    # 36x36 sloth trayTemplate@2x.png (Retina display)
+    png36 = create_png(36, 36, draw_sloth_template(36))
     (assets_dir / "trayTemplate@2x.png").write_bytes(png36)
 
-    # App Icon PNG (512x512)
+    # 512x512 app icon
     png512 = create_png(512, 512, draw_app_icon(512))
     (assets_dir / "icon.png").write_bytes(png512)
 
-    print("Generated trayTemplate.png, trayTemplate@2x.png, and icon.png successfully.")
+    print("Generated sloth trayTemplate.png (18x18), trayTemplate@2x.png (36x36), and icon.png (512x512) successfully.")
 
 if __name__ == "__main__":
     main()
-

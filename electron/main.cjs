@@ -140,10 +140,6 @@ function createTray() {
   tray = new Tray(icon);
   tray.setToolTip('Idler — Local AI File Assistant');
 
-  if (process.platform === 'darwin') {
-    tray.setTitle(' Idler');
-  }
-
   const contextMenu = Menu.buildFromTemplate([
     { label: '🦥 Idler Desktop', enabled: false },
     { type: 'separator' },
