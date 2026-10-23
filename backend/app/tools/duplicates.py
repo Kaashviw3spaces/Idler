@@ -1,4 +1,5 @@
 import hashlib
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List
@@ -36,19 +37,36 @@ def find_duplicates(
     size_map: Dict[int, List[Path]] = defaultdict(list)
     total_files_scanned = 0
 
-    iterator = target_dir.rglob("*") if recursive else target_dir.glob("*")
-    for item in iterator:
-        if any(part.startswith(".") for part in item.relative_to(workspace_root).parts):
-            continue
-
-        if item.is_file():
-            total_files_scanned += 1
-            try:
-                size = item.stat().st_size
-                if size > 0:  # Skip zero-byte files from duplicate grouping
-                    size_map[size].append(item)
-            except (OSError, PermissionError):
-                continue
+    if not recursive:
+        try:
+            with os.scandir(target_dir) as entries:
+                for entry in entries:
+                    if entry.name.startswith("."):
+                        continue
+                    try:
+                        if entry.is_file(follow_symlinks=False):
+                            total_files_scanned += 1
+                            size = entry.stat().st_size
+                            if size > 0:
+                                size_map[size].append(Path(entry.path))
+                    except (OSError, PermissionError):
+                        continue
+        except (OSError, PermissionError):
+            pass
+    else:
+        for root, dirs, filenames in os.walk(target_dir, topdown=True, onerror=lambda err: None):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for filename in filenames:
+                if filename.startswith("."):
+                    continue
+                file_path = Path(root) / filename
+                total_files_scanned += 1
+                try:
+                    size = file_path.stat().st_size
+                    if size > 0:
+                        size_map[size].append(file_path)
+                except (OSError, PermissionError):
+                    continue
 
     # Step 2: For sizes with > 1 file, hash and group
     duplicate_groups: List[DuplicateGroup] = []
