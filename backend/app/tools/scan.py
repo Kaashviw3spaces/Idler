@@ -1,6 +1,5 @@
-import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List
 from pydantic import BaseModel
 from backend.app.security.paths import validate_and_resolve_path, to_relative_path
 from backend.app.tools.classify import classify_file_by_extension
@@ -75,3 +74,4 @@ def scan_directory(
         truncated=truncated,
         files=files,
     )
+

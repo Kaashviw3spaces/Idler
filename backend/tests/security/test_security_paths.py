@@ -60,3 +60,4 @@ def test_destination_collision_prevention(tmp_path: Path):
 
     with pytest.raises(DestinationCollisionError):
         check_collision_and_preconditions(src, dst, ActionType.MOVE_FILE)
+

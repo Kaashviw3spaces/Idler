@@ -6,7 +6,6 @@ from backend.app.agent.model_client import (
     ModelClient,
     OllamaModelClient,
     MockFallbackModelClient,
-    ModelClientException,
 )
 from backend.app.agent.prompts import SYSTEM_PLANNER_PROMPT
 from backend.app.config import settings
@@ -19,7 +18,6 @@ from backend.app.schemas.models import (
 from backend.app.security.paths import (
     resolve_workspace,
     validate_and_resolve_path,
-    to_relative_path,
 )
 from backend.app.security.policies import validate_action_policy
 from backend.app.tools.scan import scan_directory

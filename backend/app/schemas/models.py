@@ -93,3 +93,4 @@ class DuplicateScanResult(BaseModel):
     scanned_files: int
     duplicate_groups: List[DuplicateGroup]
     total_wasted_bytes: int
+

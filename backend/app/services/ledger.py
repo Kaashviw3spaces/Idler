@@ -2,7 +2,7 @@ import json
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from backend.app.db.models import ActionDB, TaskDB
@@ -13,7 +13,6 @@ from backend.app.schemas.models import (
     PlanResponse,
     TaskStatus,
 )
-from backend.app.security.paths import validate_and_resolve_path, to_relative_path
 from backend.app.tools.files import move_file_safely
 
 
@@ -179,3 +178,4 @@ class ActionLedgerService:
                 error=undo_res.error,
                 rollback_supported=True,
             )
+

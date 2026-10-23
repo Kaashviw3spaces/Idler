@@ -74,3 +74,4 @@ def check_collision_and_preconditions(
             raise DestinationCollisionError(
                 f"Destination already exists: '{dest_path}'. Overwriting files is forbidden by policy."
             )
+

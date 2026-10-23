@@ -19,3 +19,4 @@ def classify_file_by_extension(filename: str) -> str:
         if suffix in extensions:
             return category
     return "Other"
+

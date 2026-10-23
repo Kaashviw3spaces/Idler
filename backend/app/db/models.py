@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from backend.app.db.database import Base
 
@@ -61,3 +61,4 @@ class WorkflowRunDB(Base):
     status = Column(String(32), nullable=False)
     error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+

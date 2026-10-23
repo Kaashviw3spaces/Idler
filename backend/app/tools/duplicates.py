@@ -1,7 +1,7 @@
 import hashlib
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 from backend.app.schemas.models import DuplicateGroup, DuplicateScanResult
 from backend.app.security.paths import validate_and_resolve_path, to_relative_path
 
@@ -84,3 +84,4 @@ def find_duplicates(
         duplicate_groups=duplicate_groups,
         total_wasted_bytes=total_wasted_bytes,
     )
+

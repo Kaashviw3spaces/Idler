@@ -56,3 +56,4 @@ Thumbs.db
 test_workspace/*
 !test_workspace/.gitkeep
 !test_workspace/sample_fixtures/
+

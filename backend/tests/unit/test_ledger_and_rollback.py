@@ -4,10 +4,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.app.db.database import Base
-from backend.app.db.models import ActionDB, TaskDB
 from backend.app.schemas.models import (
     ActionPlan,
-    ActionResult,
     ActionStatus,
     ActionType,
     PlanResponse,
@@ -112,3 +110,4 @@ def test_action_execution_and_safe_rollback(test_db, tmp_path: Path):
     original_act = ledger.get_action("act-fin-1")
     assert original_act.is_undone is True
     assert original_act.status == "rolled_back"
+

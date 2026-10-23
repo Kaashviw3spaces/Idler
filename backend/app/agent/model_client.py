@@ -73,3 +73,4 @@ class MockFallbackModelClient(ModelClient):
             "summary": "Rule-based housekeeping plan organizing files into typed folders",
             "actions": []
         }
+

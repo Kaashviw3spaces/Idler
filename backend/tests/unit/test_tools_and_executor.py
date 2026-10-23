@@ -47,6 +47,25 @@ def test_safe_move_file(tmp_path: Path):
     assert (workspace / "Documents" / "test.txt").read_text() == "content to move"
 
 
+def test_safe_rename_file(tmp_path: Path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    source_file = workspace / "old_name.txt"
+    source_file.write_text("content inside")
+
+    res = rename_file_safely(
+        action_id="act-rename-1",
+        source_rel="old_name.txt",
+        new_name="new_name.txt",
+        workspace_root=workspace,
+    )
+
+    assert res.status == ActionStatus.COMPLETED
+    assert not (workspace / "old_name.txt").exists()
+    assert (workspace / "new_name.txt").exists()
+    assert (workspace / "new_name.txt").read_text() == "content inside"
+
+
 def test_duplicate_detection(tmp_path: Path):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -84,3 +103,4 @@ def test_plan_executor(tmp_path: Path):
     assert summary.completed_actions == 1
     assert summary.failed_actions == 0
     assert (workspace / "Documents" / "invoice.pdf").exists()
+

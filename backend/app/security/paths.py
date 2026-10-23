@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Optional
 from backend.app.config import settings
 
 
@@ -132,3 +132,4 @@ def to_relative_path(absolute_path: Path, workspace_root: Path) -> str:
         return str(absolute_path.resolve().relative_to(workspace_root.resolve()).as_posix())
     except ValueError:
         return str(absolute_path.name)
+

@@ -4,17 +4,13 @@ import {
   CheckCircle2,
   AlertTriangle,
   RotateCcw,
-  Copy,
   FolderSync,
   Play,
   ArrowRight,
   Shield,
-  Layers,
   Database,
   History,
-  FileText,
-  Search,
-  HardDrive
+  Search
 } from 'lucide-react';
 import {
   PlanResponse,
@@ -876,3 +872,4 @@ export default function App() {
     </div>
   );
 }
+

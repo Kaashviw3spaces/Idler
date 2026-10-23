@@ -2,7 +2,7 @@ import pytest
 from pathlib import Path
 from backend.app.agent.planner import TaskPlanner
 from backend.app.agent.model_client import MockFallbackModelClient
-from backend.app.schemas.models import TaskStatus, ActionType
+from backend.app.schemas.models import TaskStatus
 
 
 @pytest.mark.asyncio

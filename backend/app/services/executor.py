@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 from backend.app.schemas.models import (
     ActionPlan,
     ActionResult,
@@ -124,3 +124,4 @@ class PlanExecutor:
             skipped_actions=skipped,
             results=results,
         )
+

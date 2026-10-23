@@ -1,6 +1,5 @@
 import shutil
 from pathlib import Path
-from typing import Dict, Any, Optional
 from backend.app.schemas.models import ActionResult, ActionStatus, ActionType
 from backend.app.security.paths import (
     validate_and_resolve_path,
@@ -151,3 +150,4 @@ def rename_file_safely(
             error=str(e),
             rollback_supported=False,
         )
+
