@@ -1,4 +1,5 @@
 import {
+  ActionPlan,
   PlanResponse,
   TaskExecutionSummary,
   ActionRecord,
@@ -69,6 +70,48 @@ export async function createPlan(query: string, workspacePath?: string): Promise
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.detail || 'Failed to create plan');
+  }
+  return res.json();
+}
+
+export async function updateActionDestination(
+  taskId: string,
+  actionId: string,
+  destination: string,
+  reason?: string
+): Promise<{ status: string; task_id: string; action_id: string; destination: string; reason?: string }> {
+  const res = await fetch(`${API_BASE}/tasks/${taskId}/actions/${actionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ destination, reason: reason || null }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to update action destination');
+  }
+  return res.json();
+}
+
+export async function updatePlan(taskId: string, actions: ActionPlan[]): Promise<PlanResponse> {
+  const res = await fetch(`${API_BASE}/tasks/${taskId}/plan`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ actions }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to update plan');
+  }
+  return res.json();
+}
+
+export async function deleteTaskAction(taskId: string, actionId: string): Promise<{ status: string }> {
+  const res = await fetch(`${API_BASE}/tasks/${taskId}/actions/${actionId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to remove action');
   }
   return res.json();
 }

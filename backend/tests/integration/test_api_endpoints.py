@@ -313,6 +313,81 @@ def test_register_and_remove_workspace(client_and_workspace, tmp_path):
     assert del_404.status_code == 404
 
 
+def test_edit_plan_subdirectory_and_execute(client_and_workspace):
+    client, workspace = client_and_workspace
+
+    # 1. Create a test file
+    (workspace / "tax_report.pdf").write_text("Tax Report 2024 content")
+
+    # 2. Generate plan (default AI detection would put it in "Documents/tax_report.pdf")
+    plan_resp = client.post(
+        "/api/plan",
+        json={"query": "Organize my tax documents", "workspace_path": str(workspace)}
+    )
+    assert plan_resp.status_code == 200
+    plan_data = plan_resp.json()
+    task_id = plan_data["task_id"]
+    assert len(plan_data["actions"]) >= 1
+
+    action = plan_data["actions"][0]
+    action_id = action["id"]
+    original_dest = action["destination"]
+    assert "Documents" in original_dest
+
+    # 3. User customizes the target subdirectory because they don't like the generic "Documents" detection
+    custom_destination = "Finances/2024/tax_report.pdf"
+    patch_resp = client.patch(
+        f"/api/tasks/{task_id}/actions/{action_id}",
+        json={"destination": custom_destination, "reason": "User specified custom finance folder"}
+    )
+    assert patch_resp.status_code == 200
+    patch_data = patch_resp.json()
+    assert patch_data["status"] == "updated"
+    assert patch_data["destination"] == custom_destination
+
+    # 4. Approve and execute
+    app_resp = client.post(f"/api/tasks/{task_id}/approve")
+    assert app_resp.status_code == 200
+
+    exec_resp = client.post(f"/api/tasks/{task_id}/execute")
+    assert exec_resp.status_code == 200
+    exec_data = exec_resp.json()
+    assert exec_data["status"] == "completed"
+
+    # 5. Verify the file was moved to the CUSTOM subdirectory, NOT the generic AI-detected one
+    assert (workspace / "Finances" / "2024" / "tax_report.pdf").exists()
+    assert not (workspace / "Documents" / "tax_report.pdf").exists()
+    assert not (workspace / "tax_report.pdf").exists()
+
+
+def test_remove_action_from_plan(client_and_workspace):
+    client, workspace = client_and_workspace
+
+    (workspace / "keep_me_in_root.pdf").write_text("Important root file")
+
+    plan_resp = client.post(
+        "/api/plan",
+        json={"query": "Organize all pdfs", "workspace_path": str(workspace)}
+    )
+    assert plan_resp.status_code == 200
+    task_id = plan_resp.json()["task_id"]
+    action_id = plan_resp.json()["actions"][0]["id"]
+
+    # Delete / skip action from plan
+    del_act_resp = client.delete(f"/api/tasks/{task_id}/actions/{action_id}")
+    assert del_act_resp.status_code == 200
+    assert del_act_resp.json()["status"] == "removed"
+
+    # Approve and execute
+    client.post(f"/api/tasks/{task_id}/approve")
+    exec_resp = client.post(f"/api/tasks/{task_id}/execute")
+    assert exec_resp.status_code == 200
+
+    # File must stay in root untouched
+    assert (workspace / "keep_me_in_root.pdf").exists()
+
+
+
 
 
 

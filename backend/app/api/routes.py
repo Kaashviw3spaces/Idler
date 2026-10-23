@@ -14,8 +14,11 @@ from backend.app.schemas.models import (
     ActionPlan,
     ActionResult,
     ActionStatus,
+    ActionType,
+    ActionUpdateRequest,
     DuplicateScanResult,
     PlanResponse,
+    PlanUpdateRequest,
     ProjectInspectionResult,
     TaskCreateRequest,
     WorkspaceRegisterRequest,
@@ -29,7 +32,9 @@ from backend.app.security.paths import (
     get_all_allowed_roots,
     WorkspaceBoundaryError,
     PathTraversalError,
+    InvalidPathError,
 )
+from backend.app.security.policies import validate_action_policy
 from backend.app.services.executor import PlanExecutor
 from backend.app.services.ledger import ActionLedgerService
 from backend.app.services.workflows import (
@@ -233,6 +238,200 @@ def get_task(task_id: str, db: Session = Depends(get_db)):
         "created_at": task.created_at.isoformat() if task.created_at else None,
         "updated_at": task.updated_at.isoformat() if task.updated_at else None,
     }
+
+
+@router.patch("/tasks/{task_id}/actions/{action_id}")
+def update_action_destination(
+    task_id: str,
+    action_id: str,
+    req: ActionUpdateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Allows the user to customize or edit the destination subdirectory / path
+    proposed by AI detection before approving and executing the plan.
+    """
+    task = db.query(TaskDB).filter(TaskDB.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    if task.status not in (TaskStatus.AWAITING_APPROVAL.value, TaskStatus.RECEIVED.value):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot edit actions for task in state '{task.status}'"
+        )
+
+    workspace_root = Path(task.workspace_path)
+    clean_dest = req.destination.strip()
+    if not clean_dest:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Destination path cannot be empty")
+
+    try:
+        dst_resolved = validate_and_resolve_path(clean_dest, workspace_root, must_exist=False)
+
+        action_db = db.query(ActionDB).filter(ActionDB.id == action_id, ActionDB.task_id == task_id).first()
+        if not action_db:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Action not found in task")
+
+        if action_db.source:
+            src_resolved = validate_and_resolve_path(action_db.source, workspace_root, must_exist=True)
+            if dst_resolved.exists() and dst_resolved != src_resolved:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Destination file already exists on disk: '{clean_dest}'. Overwriting is blocked."
+                )
+
+        temp_action = ActionPlan(
+            id=action_id,
+            type=ActionType(action_db.action_type),
+            source=action_db.source or "",
+            destination=clean_dest,
+            reason=req.reason or action_db.message,
+        )
+        is_valid, policy_err = validate_action_policy(temp_action, workspace_root)
+        if not is_valid:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=policy_err or "Action violates safety policy")
+
+        # Update ActionDB
+        action_db.destination = clean_dest
+        if req.reason:
+            action_db.message = req.reason
+
+        # Update TaskDB.plan_json
+        raw_plan = json.loads(task.plan_json or "[]")
+        for item in raw_plan:
+            if item.get("id") == action_id:
+                item["destination"] = clean_dest
+                if req.reason:
+                    item["reason"] = req.reason
+                break
+        task.plan_json = json.dumps(raw_plan)
+
+        db.commit()
+        db.refresh(action_db)
+
+        return {
+            "status": "updated",
+            "task_id": task_id,
+            "action_id": action_id,
+            "destination": clean_dest,
+            "reason": action_db.message,
+        }
+    except HTTPException:
+        raise
+    except (WorkspaceBoundaryError, PathTraversalError, InvalidPathError) as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.put("/tasks/{task_id}/plan", response_model=PlanResponse)
+def update_task_plan(
+    task_id: str,
+    req: PlanUpdateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Updates the entire task plan (e.g. batch editing subdirectories or modifying destinations).
+    """
+    task = db.query(TaskDB).filter(TaskDB.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    if task.status not in (TaskStatus.AWAITING_APPROVAL.value, TaskStatus.RECEIVED.value):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot edit plan for task in state '{task.status}'"
+        )
+
+    workspace_root = Path(task.workspace_path)
+    validated_actions: List[ActionPlan] = []
+
+    for act in req.actions:
+        try:
+            src_resolved = validate_and_resolve_path(act.source, workspace_root, must_exist=True)
+            if act.destination:
+                dst_resolved = validate_and_resolve_path(act.destination, workspace_root, must_exist=False)
+                if dst_resolved.exists() and dst_resolved != src_resolved:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Destination '{act.destination}' already exists on disk"
+                    )
+            is_valid, reason = validate_action_policy(act, workspace_root)
+            if not is_valid:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason or "Policy violation")
+            validated_actions.append(act)
+        except HTTPException:
+            raise
+        except (WorkspaceBoundaryError, PathTraversalError, InvalidPathError) as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    # Update TaskDB
+    task.plan_json = json.dumps([a.model_dump() for a in validated_actions])
+    task.updated_at = datetime.utcnow()
+
+    # Re-sync ActionDB
+    db.query(ActionDB).filter(ActionDB.task_id == task_id).delete()
+    for action in validated_actions:
+        act_db = ActionDB(
+            id=action.id,
+            task_id=task_id,
+            action_type=action.type.value,
+            status=ActionStatus.PENDING.value,
+            source=action.source,
+            destination=action.destination,
+            message=action.reason,
+            rollback_supported=False,
+            is_undone=False,
+        )
+        db.add(act_db)
+
+    db.commit()
+    db.refresh(task)
+
+    return PlanResponse(
+        task_id=task.id,
+        query=task.query,
+        workspace_path=task.workspace_path,
+        actions=validated_actions,
+        summary=f"Plan updated by user ({len(validated_actions)} actions)",
+        requires_approval=len(validated_actions) > 0,
+        status=TaskStatus.AWAITING_APPROVAL if validated_actions else TaskStatus.COMPLETED,
+    )
+
+
+@router.delete("/tasks/{task_id}/actions/{action_id}")
+def delete_task_action(
+    task_id: str,
+    action_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Removes a single planned action from the task plan (skips moving that file).
+    """
+    task = db.query(TaskDB).filter(TaskDB.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    if task.status not in (TaskStatus.AWAITING_APPROVAL.value, TaskStatus.RECEIVED.value):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot remove actions from task in state '{task.status}'"
+        )
+
+    action_db = db.query(ActionDB).filter(ActionDB.id == action_id, ActionDB.task_id == task_id).first()
+    if not action_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Action not found in task")
+
+    db.delete(action_db)
+
+    # Update TaskDB plan_json
+    raw_plan = json.loads(task.plan_json or "[]")
+    raw_plan = [a for a in raw_plan if a.get("id") != action_id]
+    task.plan_json = json.dumps(raw_plan)
+    db.commit()
+
+    return {"status": "removed", "task_id": task_id, "action_id": action_id}
 
 
 @router.post("/tasks/{task_id}/approve")

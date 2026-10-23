@@ -55,6 +55,15 @@ class ActionPlan(BaseModel):
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
+class ActionUpdateRequest(BaseModel):
+    destination: str = Field(..., min_length=1, description="New relative destination path or subdirectory")
+    reason: Optional[str] = Field(None, description="Optional explanation or reason for the edit")
+
+
+class PlanUpdateRequest(BaseModel):
+    actions: List[ActionPlan] = Field(..., description="Full updated list of actions for the task plan")
+
+
 class PlanResponse(BaseModel):
     task_id: str
     query: str

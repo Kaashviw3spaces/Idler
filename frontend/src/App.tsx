@@ -23,6 +23,8 @@ import {
   Code2,
   Layers,
   Download,
+  Pencil,
+  Check,
 } from 'lucide-react';
 import {
   PlanResponse,
@@ -150,6 +152,13 @@ export default function App() {
   const [executionSummary, setExecutionSummary] = useState<TaskExecutionSummary | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Plan Subdirectory Editing State
+  const [editingActionId, setEditingActionId] = useState<string | null>(null);
+  const [editingSubdir, setEditingSubdir] = useState('');
+  const [batchEditingSubdir, setBatchEditingSubdir] = useState<string | null>(null);
+  const [batchNewSubdir, setBatchNewSubdir] = useState('');
+  const [isSavingPlan, setIsSavingPlan] = useState(false);
 
   // Action Ledger State
   const [actions, setActions] = useState<ActionRecord[]>([]);
@@ -301,6 +310,143 @@ export default function App() {
     setCurrentPlan(null);
     setExecutionSummary(null);
     setErrorMsg(null);
+    setEditingActionId(null);
+    setEditingSubdir('');
+    setBatchEditingSubdir(null);
+    setBatchNewSubdir('');
+  }
+
+  function getSubdirectory(destination?: string): string {
+    if (!destination) return '';
+    const lastSlash = destination.lastIndexOf('/');
+    return lastSlash > -1 ? destination.substring(0, lastSlash) : '';
+  }
+
+  function getFilename(pathStr: string): string {
+    const lastSlash = pathStr.lastIndexOf('/');
+    return lastSlash > -1 ? pathStr.substring(lastSlash + 1) : pathStr;
+  }
+
+  function computeDestination(sourcePath: string, targetSubdir: string): string {
+    const filename = getFilename(sourcePath);
+    const cleanSubdir = targetSubdir.trim().replace(/^\/+|\/+$/g, '');
+    if (!cleanSubdir || cleanSubdir === '.') {
+      return filename;
+    }
+    return `${cleanSubdir}/${filename}`;
+  }
+
+  const detectedSubdirs = useMemo(() => {
+    if (!currentPlan) return [];
+    const counts: Record<string, number> = {};
+    for (const act of currentPlan.actions) {
+      if (act.destination) {
+        const sub = getSubdirectory(act.destination) || '(root)';
+        counts[sub] = (counts[sub] || 0) + 1;
+      }
+    }
+    return Object.entries(counts).map(([name, count]) => ({ name, count }));
+  }, [currentPlan]);
+
+  function handleStartEditAction(actionId: string, currentDestination?: string) {
+    setEditingActionId(actionId);
+    setEditingSubdir(getSubdirectory(currentDestination) || '');
+  }
+
+  function handleCancelEditAction() {
+    setEditingActionId(null);
+    setEditingSubdir('');
+  }
+
+  async function handleSaveActionSubdir(actionId: string, sourcePath: string) {
+    if (!currentPlan) return;
+    const newDest = computeDestination(sourcePath, editingSubdir);
+    setIsSavingPlan(true);
+    try {
+      await api.updateActionDestination(
+        currentPlan.task_id,
+        actionId,
+        newDest,
+        `Subdirectory customized: "${editingSubdir || '(root)'}"`
+      );
+      const updatedActions = currentPlan.actions.map((act) =>
+        act.id === actionId
+          ? {
+              ...act,
+              destination: newDest,
+              reason: `Subdirectory customized: "${editingSubdir || '(root)'}"`,
+            }
+          : act
+      );
+      setCurrentPlan({ ...currentPlan, actions: updatedActions });
+      addToast('success', `Subdirectory set to "${editingSubdir || '(root)'}" (${newDest})`);
+      setEditingActionId(null);
+      setEditingSubdir('');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', msg);
+    } finally {
+      setIsSavingPlan(false);
+    }
+  }
+
+  async function handleRemoveAction(actionId: string, sourcePath: string) {
+    if (!currentPlan) return;
+    try {
+      await api.deleteTaskAction(currentPlan.task_id, actionId);
+      const updatedActions = currentPlan.actions.filter((act) => act.id !== actionId);
+      setCurrentPlan({ ...currentPlan, actions: updatedActions });
+      addToast('info', `Excluded "${sourcePath}" from plan`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', msg);
+    }
+  }
+
+  function handleStartBatchEdit(subdirName: string) {
+    setBatchEditingSubdir(subdirName);
+    setBatchNewSubdir(subdirName === '(root)' ? '' : subdirName);
+  }
+
+  function handleCancelBatchEdit() {
+    setBatchEditingSubdir(null);
+    setBatchNewSubdir('');
+  }
+
+  async function handleApplyBatchSubdir() {
+    if (!currentPlan || !batchEditingSubdir) return;
+    const targetOldSubdir = batchEditingSubdir === '(root)' ? '' : batchEditingSubdir;
+    const targetNewSubdir = batchNewSubdir.trim().replace(/^\/+|\/+$/g, '');
+
+    const updatedActions = currentPlan.actions.map((act) => {
+      const currentSub = getSubdirectory(act.destination);
+      if (currentSub === targetOldSubdir) {
+        const newDest = computeDestination(act.source, targetNewSubdir);
+        return {
+          ...act,
+          destination: newDest,
+          reason: `Customized subdirectory: "${targetNewSubdir || '(root)'}"`,
+        };
+      }
+      return act;
+    });
+
+    setIsSavingPlan(true);
+    try {
+      const res = await api.updatePlan(currentPlan.task_id, updatedActions);
+      setCurrentPlan(res);
+      addToast(
+        'success',
+        `Remapped all "${batchEditingSubdir}" files to "${targetNewSubdir || '(root)'}"`
+      );
+      setBatchEditingSubdir(null);
+      setBatchNewSubdir('');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', msg);
+    } finally {
+      setIsSavingPlan(false);
+    }
   }
 
   async function handleUndo(actionId: string) {
@@ -1046,6 +1192,142 @@ export default function App() {
                 </div>
               </div>
 
+              {/* AI-Detected Subdirectories & Quick Remap Bar */}
+              {detectedSubdirs.length > 0 && (
+                <div style={{
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: '10px',
+                  padding: '14px 16px',
+                  marginTop: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '600', color: '#f8fafc' }}>
+                        AI-Detected Subdirectories:
+                      </span>
+                      {detectedSubdirs.map((sub) => (
+                        <span key={sub.name} style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: '#0f172a',
+                          border: '1px solid #334155',
+                          borderRadius: '6px',
+                          padding: '4px 8px',
+                          fontSize: '12px',
+                          color: '#38bdf8'
+                        }}>
+                          <span>📁 {sub.name}</span>
+                          <span style={{ color: '#64748b', fontSize: '11px' }}>({sub.count} file{sub.count > 1 ? 's' : ''})</span>
+                          <button
+                            type="button"
+                            onClick={() => handleStartBatchEdit(sub.name)}
+                            title={`Change all files destined for "${sub.name}" to another folder`}
+                            style={{
+                              background: '#334155',
+                              border: 'none',
+                              color: '#f8fafc',
+                              borderRadius: '4px',
+                              padding: '2px 6px',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px'
+                            }}
+                          >
+                            <Pencil size={10} />
+                            Change Folder
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                      Don't like the AI detection? Click <strong>Change Folder</strong> above or edit any file below.
+                    </span>
+                  </div>
+
+                  {/* Batch Edit Input Box (when triggered) */}
+                  {batchEditingSubdir && (
+                    <div style={{
+                      background: '#0f172a',
+                      border: '1px solid #3b82f6',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <span style={{ fontSize: '13px', color: '#e2e8f0' }}>
+                        Change all files from <code>{batchEditingSubdir}</code> to new subdirectory:
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="e.g. Invoices, Personal/2026, or empty for root"
+                        value={batchNewSubdir}
+                        onChange={(e) => setBatchNewSubdir(e.target.value)}
+                        style={{
+                          background: '#1e293b',
+                          border: '1px solid #334155',
+                          borderRadius: '6px',
+                          color: '#ffffff',
+                          padding: '6px 10px',
+                          fontSize: '13px',
+                          flex: 1,
+                          minWidth: '200px'
+                        }}
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleApplyBatchSubdir();
+                          if (e.key === 'Escape') handleCancelBatchEdit();
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyBatchSubdir}
+                        disabled={isSavingPlan}
+                        style={{
+                          background: '#2563eb',
+                          border: 'none',
+                          color: '#ffffff',
+                          padding: '6px 14px',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <Check size={14} />
+                        {isSavingPlan ? 'Saving...' : 'Apply to All'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancelBatchEdit}
+                        style={{
+                          background: '#374151',
+                          border: 'none',
+                          color: '#cbd5e1',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Action items table */}
               <div style={{ overflowX: 'auto', marginTop: '16px' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
@@ -1053,14 +1335,15 @@ export default function App() {
                     <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
                       <th style={{ padding: '10px 12px' }}>Action</th>
                       <th style={{ padding: '10px 12px' }}>Source File</th>
-                      <th style={{ padding: '10px 12px' }}>Destination</th>
+                      <th style={{ padding: '10px 12px' }}>Target Subdirectory & Destination</th>
                       <th style={{ padding: '10px 12px' }}>Reason</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Customize</th>
                     </tr>
                   </thead>
                   <tbody>
                     {currentPlan.actions.length === 0 ? (
                       <tr>
-                        <td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
+                        <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
                           No files needed moving. Workspace is already clean!
                         </td>
                       </tr>
@@ -1080,8 +1363,135 @@ export default function App() {
                             </span>
                           </td>
                           <td style={{ padding: '12px', fontFamily: 'monospace', color: '#e2e8f0' }}>{act.source}</td>
-                          <td style={{ padding: '12px', fontFamily: 'monospace', color: '#38bdf8' }}>{act.destination || '—'}</td>
+                          <td style={{ padding: '12px' }}>
+                            {editingActionId === act.id ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <input
+                                    type="text"
+                                    value={editingSubdir}
+                                    onChange={(e) => setEditingSubdir(e.target.value)}
+                                    placeholder="Subfolder name (or leave empty for root)"
+                                    style={{
+                                      background: '#0f172a',
+                                      border: '1px solid #3b82f6',
+                                      borderRadius: '6px',
+                                      color: '#ffffff',
+                                      padding: '4px 8px',
+                                      fontSize: '13px',
+                                      width: '220px'
+                                    }}
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') handleSaveActionSubdir(act.id, act.source);
+                                      if (e.key === 'Escape') handleCancelEditAction();
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveActionSubdir(act.id, act.source)}
+                                    disabled={isSavingPlan}
+                                    style={{
+                                      background: '#10b981',
+                                      border: 'none',
+                                      color: '#ffffff',
+                                      padding: '4px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '12px',
+                                      fontWeight: '600',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '3px'
+                                    }}
+                                  >
+                                    <Check size={12} />
+                                    Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleCancelEditAction}
+                                    style={{
+                                      background: '#374151',
+                                      border: 'none',
+                                      color: '#cbd5e1',
+                                      padding: '4px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '12px',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                                <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                                  Result: {computeDestination(act.source, editingSubdir)}
+                                </span>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{
+                                  background: '#0f172a',
+                                  border: '1px solid #334155',
+                                  color: '#38bdf8',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: '600'
+                                }}>
+                                  📁 {getSubdirectory(act.destination) || '(root)'}
+                                </span>
+                                <span style={{ fontFamily: 'monospace', color: '#cbd5e1' }}>{act.destination || '—'}</span>
+                              </div>
+                            )}
+                          </td>
                           <td style={{ padding: '12px', color: '#94a3b8' }}>{act.reason || '—'}</td>
+                          <td style={{ padding: '12px', textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                              {editingActionId !== act.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditAction(act.id, act.destination)}
+                                  title="Edit subdirectory for this file"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '4px 8px',
+                                    background: '#1e293b',
+                                    border: '1px solid #334155',
+                                    color: '#cbd5e1',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Pencil size={11} />
+                                  Edit Subdirectory
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAction(act.id, act.source)}
+                                title="Exclude this file from plan"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                  padding: '4px 6px',
+                                  background: 'rgba(239, 68, 68, 0.1)',
+                                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                                  color: '#fca5a5',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <X size={11} />
+                                Skip
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))
                     )}
