@@ -46,11 +46,11 @@ function showWindow() {
     mainWindow.restore();
   }
   mainWindow.show();
-  mainWindow.focus();
-
-  if (process.platform === 'darwin' && app.dock) {
-    app.dock.show();
+  if (process.platform === 'darwin') {
+    if (app.dock) app.dock.show();
+    app.focus({ steal: true });
   }
+  mainWindow.focus();
 }
 
 function toggleWindow() {
@@ -82,36 +82,25 @@ function createWindow() {
     },
   });
 
-  const devUrl = 'http://localhost:5173';
-  const prodPath = path.join(__dirname, 'frontend_dist', 'index.html');
-  const fallbackProdPath = path.join(__dirname, '..', 'frontend', 'dist', 'index.html');
+  mainWindow.webContents.on('did-fail-load', (e, code, desc, url) => {
+    console.error('Renderer failed to load:', code, desc, url);
+  });
 
-  function loadStaticUI() {
-    const fs = require('fs');
-    if (fs.existsSync(prodPath)) {
-      mainWindow.loadFile(prodPath);
-    } else if (fs.existsSync(fallbackProdPath)) {
-      mainWindow.loadFile(fallbackProdPath);
-    } else {
-      console.error('Frontend build artifacts not found at', prodPath, 'or', fallbackProdPath);
-    }
+  mainWindow.webContents.on('console-message', (e, level, message) => {
+    console.log(`[Renderer]:`, message);
+  });
+
+  const bundledUiPath = path.join(__dirname, 'frontend_dist', 'index.html');
+
+  if (app.isPackaged) {
+    // In packaged app, always load self-contained bundled frontend
+    mainWindow.loadFile(bundledUiPath);
+  } else {
+    // In local dev, try Vite dev server first, fallback to bundled build
+    mainWindow.loadURL('http://localhost:5173').catch(() => {
+      mainWindow.loadFile(bundledUiPath);
+    });
   }
-
-  // Check if Vite dev server is running, otherwise load static production build
-  const req = http.get(devUrl, (res) => {
-    if (res.statusCode === 200) {
-      mainWindow.loadURL(devUrl);
-    } else {
-      loadStaticUI();
-    }
-  });
-  req.on('error', () => {
-    loadStaticUI();
-  });
-  req.setTimeout(800, () => {
-    req.destroy();
-    loadStaticUI();
-  });
 
   // Reveal window as soon as rendered
   mainWindow.once('ready-to-show', () => {
