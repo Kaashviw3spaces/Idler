@@ -5,17 +5,19 @@ import {
   ActionResult,
   DuplicateScanResult,
   WorkflowItem,
+  SystemHealth,
+  WorkspaceItem,
 } from './types';
 
 const API_BASE = '/api';
 
-export async function fetchHealth() {
+export async function fetchHealth(): Promise<SystemHealth> {
   const res = await fetch(`${API_BASE}/health`);
   if (!res.ok) throw new Error('Health check failed');
   return res.json();
 }
 
-export async function fetchWorkspaces() {
+export async function fetchWorkspaces(): Promise<WorkspaceItem[]> {
   const res = await fetch(`${API_BASE}/workspaces`);
   if (!res.ok) throw new Error('Failed to load workspaces');
   return res.json();
@@ -34,7 +36,7 @@ export async function createPlan(query: string, workspacePath?: string): Promise
   return res.json();
 }
 
-export async function approveTask(taskId: string): Promise<any> {
+export async function approveTask(taskId: string): Promise<{ task_id: string; status: string; message: string }> {
   const res = await fetch(`${API_BASE}/tasks/${taskId}/approve`, {
     method: 'POST',
   });
@@ -122,4 +124,3 @@ export async function runWorkflow(workflowId: string): Promise<TaskExecutionSumm
   }
   return res.json();
 }
-

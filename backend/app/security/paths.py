@@ -47,16 +47,29 @@ def resolve_workspace(workspace_hint: Optional[str] = None) -> Path:
     if not workspace_hint:
         return allowed_roots[0]
 
-    candidate = Path(workspace_hint).expanduser().resolve()
-    for root in allowed_roots:
-        try:
-            candidate.relative_to(root)
-            return candidate
-        except ValueError:
-            continue
+    raw_hint = Path(workspace_hint).expanduser()
+    candidate_variants = []
 
+    if raw_hint.is_absolute():
+        candidate_variants.append(raw_hint.resolve())
+    else:
+        # Relative paths are evaluated against each allowed workspace root so a
+        # caller can pass values like "project/subdir" even when the current
+        # working directory is not inside the allowed workspace tree.
+        candidate_variants.extend((root / raw_hint).resolve() for root in allowed_roots)
+        candidate_variants.append(raw_hint.resolve())
+
+    for root in allowed_roots:
+        for candidate in candidate_variants:
+            try:
+                candidate.relative_to(root)
+                return candidate
+            except ValueError:
+                continue
+
+    final_candidate = candidate_variants[0] if candidate_variants else Path(workspace_hint).expanduser().resolve()
     raise WorkspaceBoundaryError(
-        f"Workspace '{workspace_hint}' resolves to '{candidate}', which is outside allowed workspaces: {allowed_roots}"
+        f"Workspace '{workspace_hint}' resolves to '{final_candidate}', which is outside allowed workspaces: {allowed_roots}"
     )
 
 

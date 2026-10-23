@@ -1,7 +1,7 @@
 import json
 import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Set
 from backend.app.agent.model_client import (
     ModelClient,
     OllamaModelClient,
@@ -107,7 +107,26 @@ class TaskPlanner:
         # If model returned no actions or failed, apply deterministic organizer fallback
         if not actions:
             summary = "Automated rule-based organization based on file extensions"
+            q_lower = query.lower()
+
+            # Query intent extraction for specific file types
+            filter_exts: Optional[Set[str]] = None
+            if "pdf" in q_lower:
+                filter_exts = {".pdf"}
+            elif any(w in q_lower for w in ["image", "photo", "picture", "screenshot"]):
+                filter_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"}
+            elif any(w in q_lower for w in ["spreadsheet", "excel", "csv", "sheet"]):
+                filter_exts = {".xlsx", ".xls", ".csv", ".tsv"}
+            elif any(w in q_lower for w in ["document", "doc", "word"]):
+                filter_exts = {".pdf", ".docx", ".doc", ".txt", ".md", ".rtf", ".odt", ".pages"}
+            elif any(w in q_lower for w in ["code", "script", "program"]):
+                filter_exts = {".py", ".js", ".ts", ".html", ".css", ".json", ".yaml", ".yml", ".sh"}
+
             for f in scan_res.files:
+                # If a specific category was requested, filter other file types
+                if filter_exts and f.extension not in filter_exts:
+                    continue
+
                 # Don't move if it's already inside a category directory
                 parts = Path(f.relative_path).parts
                 if len(parts) > 1 and parts[0] in [
@@ -131,12 +150,18 @@ class TaskPlanner:
 
         # Step 3: Strict security & path validation on all actions
         validated_actions: List[ActionPlan] = []
+        skipped_due_to_collision = 0
+
         for act in actions:
             try:
                 # Security boundary checks
-                validate_and_resolve_path(act.source, self.workspace_root, must_exist=True)
+                src_resolved = validate_and_resolve_path(act.source, self.workspace_root, must_exist=True)
                 if act.destination:
-                    validate_and_resolve_path(act.destination, self.workspace_root, must_exist=False)
+                    dst_resolved = validate_and_resolve_path(act.destination, self.workspace_root, must_exist=False)
+                    # Check destination collision: if destination already exists and is not the source itself, skip it!
+                    if dst_resolved.exists() and dst_resolved != src_resolved:
+                        skipped_due_to_collision += 1
+                        continue
 
                 # Policy allowlist check
                 is_valid, _ = validate_action_policy(act, self.workspace_root)
@@ -145,6 +170,9 @@ class TaskPlanner:
             except Exception:
                 # Skip invalid or unsafe proposed actions
                 continue
+
+        if skipped_due_to_collision > 0:
+            summary += f" ({skipped_due_to_collision} file(s) skipped because destination already exists)"
 
         return PlanResponse(
             task_id=task_id,

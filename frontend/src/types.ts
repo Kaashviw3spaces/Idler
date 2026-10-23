@@ -82,3 +82,25 @@ export interface WorkflowItem {
   schedule_cron?: string;
   created_at: string;
 }
+
+export interface WorkspaceFilePreview {
+  name: string;
+  relative_path: string;
+  category: string;
+  size_bytes: number;
+}
+
+export interface WorkspaceItem {
+  path: string;
+  files_count: number;
+  total_size_bytes: number;
+  preview: WorkspaceFilePreview[];
+}
+
+export interface SystemHealth {
+  status: string;
+  app_name: string;
+  ollama_base_url: string;
+  ollama_model: string;
+  allowed_workspaces: string[];
+}

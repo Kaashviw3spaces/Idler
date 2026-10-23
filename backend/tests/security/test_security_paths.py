@@ -2,6 +2,7 @@ import pytest
 from pathlib import Path
 from backend.app.security.paths import (
     validate_and_resolve_path,
+    resolve_workspace,
     PathTraversalError,
     WorkspaceBoundaryError,
     InvalidPathError,
@@ -60,4 +61,14 @@ def test_destination_collision_prevention(tmp_path: Path):
 
     with pytest.raises(DestinationCollisionError):
         check_collision_and_preconditions(src, dst, ActionType.MOVE_FILE)
+
+
+def test_resolve_workspace_relative_to_allowed_root(tmp_path: Path, monkeypatch):
+    allowed_root = tmp_path / "allowed_workspace"
+    nested = allowed_root / "nested"
+    nested.mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("backend.app.config.settings.allowed_workspaces_raw", str(allowed_root))
+
+    assert resolve_workspace("nested") == nested
 

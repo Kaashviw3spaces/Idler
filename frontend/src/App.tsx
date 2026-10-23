@@ -10,21 +10,39 @@ import {
   Shield,
   Database,
   History,
-  Search
+  Search,
+  XCircle,
+  RefreshCw,
+  FolderOpen,
+  FileCheck
 } from 'lucide-react';
 import {
   PlanResponse,
   TaskExecutionSummary,
   ActionRecord,
   DuplicateScanResult,
-  WorkflowItem
+  WorkflowItem,
+  SystemHealth,
+  WorkspaceItem,
 } from './types';
 import * as api from './api';
 
+const QUICK_PROMPTS = [
+  { label: '📄 Organize PDFs', prompt: 'Organize all PDF documents into the Documents folder' },
+  { label: '📊 Sort Spreadsheets', prompt: 'Move all Excel spreadsheets and CSV files into Spreadsheets' },
+  { label: '🖼️ Group Images', prompt: 'Organize all pictures and screenshots into Images' },
+  { label: '🔍 Find Duplicates', prompt: 'Scan workspace and find identical duplicate files' },
+];
+
 export default function App() {
-  const [tab, setTab] = useState<'planner' | 'ledger' | 'duplicates' | 'workflows'>('planner');
-  const [health, setHealth] = useState<any>(null);
+  const [tab, setTab] = useState<'planner' | 'ledger' | 'duplicates' | 'workflows' | 'workspaces'>('planner');
+  const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [isBackendOffline, setIsBackendOffline] = useState(false);
   
+  // Workspace state
+  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>('');
+
   // Planner State
   const [query, setQuery] = useState('');
   const [isPlanning, setIsPlanning] = useState(false);
@@ -36,6 +54,7 @@ export default function App() {
   // Action Ledger State
   const [actions, setActions] = useState<ActionRecord[]>([]);
   const [undoingId, setUndoingId] = useState<string | null>(null);
+  const [ledgerFilter, setLedgerFilter] = useState<'all' | 'completed' | 'undone'>('all');
 
   // Duplicates State
   const [dupResult, setDupResult] = useState<DuplicateScanResult | null>(null);
@@ -49,23 +68,42 @@ export default function App() {
   const [isRunningWf, setIsRunningWf] = useState<string | null>(null);
 
   useEffect(() => {
-    loadHealth();
-    loadActions();
-    loadWorkflows();
+    refreshAll();
   }, []);
+
+  async function refreshAll() {
+    await loadHealth();
+    await loadWorkspaces();
+    await loadActions();
+    await loadWorkflows();
+  }
 
   async function loadHealth() {
     try {
       const data = await api.fetchHealth();
       setHealth(data);
+      setIsBackendOffline(false);
     } catch {
-      // Backend not running yet or unreachable
+      setIsBackendOffline(true);
+      setHealth(null);
+    }
+  }
+
+  async function loadWorkspaces() {
+    try {
+      const data = await api.fetchWorkspaces();
+      setWorkspaces(data);
+      if (data.length > 0 && !selectedWorkspace) {
+        setSelectedWorkspace(data[0].path);
+      }
+    } catch {
+      // Backend may be offline
     }
   }
 
   async function loadActions() {
     try {
-      const data = await api.listActions(50);
+      const data = await api.listActions(100);
       setActions(data);
     } catch {
       // Ignore initial failure
@@ -91,10 +129,11 @@ export default function App() {
     setExecutionSummary(null);
 
     try {
-      const plan = await api.createPlan(query);
+      const plan = await api.createPlan(query, selectedWorkspace || undefined);
       setCurrentPlan(plan);
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg);
     } finally {
       setIsPlanning(false);
     }
@@ -111,12 +150,20 @@ export default function App() {
       // Step 2: Execute
       const summary = await api.executeTask(currentPlan.task_id);
       setExecutionSummary(summary);
-      loadActions();
-    } catch (err: any) {
-      setErrorMsg(err.message);
+      await loadActions();
+      await loadWorkspaces();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg);
     } finally {
       setIsExecuting(false);
     }
+  }
+
+  function handleDiscardPlan() {
+    setCurrentPlan(null);
+    setExecutionSummary(null);
+    setErrorMsg(null);
   }
 
   async function handleUndo(actionId: string) {
@@ -125,8 +172,10 @@ export default function App() {
     try {
       await api.undoAction(actionId);
       await loadActions();
-    } catch (err: any) {
-      setErrorMsg(err.message);
+      await loadWorkspaces();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg);
     } finally {
       setUndoingId(null);
     }
@@ -138,8 +187,9 @@ export default function App() {
     try {
       const res = await api.scanDuplicates('.');
       setDupResult(res);
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg);
     } finally {
       setIsScanningDups(false);
     }
@@ -149,13 +199,14 @@ export default function App() {
     e.preventDefault();
     if (!wfName.trim() || !wfQuery.trim()) return;
     try {
-      await api.createWorkflow(wfName, wfQuery, wfDesc);
+      await api.createWorkflow(wfName, wfQuery, wfDesc, selectedWorkspace || undefined);
       setWfName('');
       setWfQuery('');
       setWfDesc('');
       await loadWorkflows();
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg);
     }
   }
 
@@ -166,13 +217,21 @@ export default function App() {
       const res = await api.runWorkflow(id);
       setExecutionSummary(res);
       setTab('planner');
-      loadActions();
-    } catch (err: any) {
-      setErrorMsg(err.message);
+      await loadActions();
+      await loadWorkspaces();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg);
     } finally {
       setIsRunningWf(null);
     }
   }
+
+  const filteredActions = actions.filter((act) => {
+    if (ledgerFilter === 'completed') return act.status === 'completed' && !act.is_undone;
+    if (ledgerFilter === 'undone') return act.is_undone;
+    return true;
+  });
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 20px' }}>
@@ -183,7 +242,7 @@ export default function App() {
         alignItems: 'center',
         paddingBottom: '20px',
         borderBottom: '1px solid #1e293b',
-        marginBottom: '28px'
+        marginBottom: '24px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
@@ -217,8 +276,27 @@ export default function App() {
           </div>
         </div>
 
-        {/* System Badges */}
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        {/* System Badges & Refresh */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button
+            onClick={refreshAll}
+            title="Refresh system status"
+            style={{
+              background: '#1e293b',
+              border: '1px solid #334155',
+              color: '#94a3b8',
+              padding: '6px 10px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '12px'
+            }}
+          >
+            <RefreshCw size={14} />
+            <span>Sync</span>
+          </button>
+
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -231,7 +309,7 @@ export default function App() {
             color: '#38bdf8'
           }}>
             <Shield size={14} />
-            <span>Workspace Guard: <strong>Active</strong></span>
+            <span>Guard: <strong>Active</strong></span>
           </div>
 
           <div style={{
@@ -243,13 +321,54 @@ export default function App() {
             border: '1px solid #1e293b',
             borderRadius: '8px',
             fontSize: '13px',
-            color: '#a7f3d0'
+            color: isBackendOffline ? '#f87171' : '#a7f3d0'
           }}>
             <Database size={14} />
-            <span>Model: <strong>{health?.ollama_model || 'Gemma Local'}</strong></span>
+            <span>
+              {isBackendOffline ? 'Backend Offline' : (health?.ollama_model ? `Model: ${health.ollama_model}` : 'Model Ready')}
+            </span>
           </div>
         </div>
       </header>
+
+      {/* Backend Offline Warning Banner */}
+      {isBackendOffline && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.15)',
+          border: '1px solid #ef4444',
+          color: '#fca5a5',
+          padding: '14px 18px',
+          borderRadius: '10px',
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertTriangle size={20} />
+            <div>
+              <strong>FastAPI Backend is Offline:</strong> Make sure the backend server is running via{' '}
+              <code style={{ background: '#1e1e2e', padding: '2px 6px', borderRadius: '4px' }}>
+                backend/venv/bin/uvicorn backend.app.main:app --port 8000
+              </code>
+            </div>
+          </div>
+          <button
+            onClick={loadHealth}
+            style={{
+              padding: '6px 12px',
+              background: '#ef4444',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: '600'
+            }}
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
 
       {/* Global Error Banner */}
       {errorMsg && (
@@ -275,7 +394,7 @@ export default function App() {
         gap: '8px',
         borderBottom: '1px solid #1e293b',
         paddingBottom: '12px',
-        marginBottom: '28px'
+        marginBottom: '24px'
       }}>
         <button
           onClick={() => setTab('planner')}
@@ -352,6 +471,25 @@ export default function App() {
           <FolderSync size={16} />
           Saved Workflows ({workflows.length})
         </button>
+
+        <button
+          onClick={() => { setTab('workspaces'); loadWorkspaces(); }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            border: 'none',
+            fontSize: '14px',
+            fontWeight: '600',
+            background: tab === 'workspaces' ? '#2563eb' : 'transparent',
+            color: tab === 'workspaces' ? '#ffffff' : '#94a3b8'
+          }}
+        >
+          <FolderOpen size={16} />
+          Workspaces
+        </button>
       </nav>
 
       {/* TAB 1: AGENT PLANNER */}
@@ -369,8 +507,30 @@ export default function App() {
               What would you like Idler to do?
             </h2>
             <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '16px' }}>
-              Describe your goal in plain English. The agent proposes a plan, you approve it, and changes can always be rolled back.
+              Describe your task in plain language. The agent prepares a verified plan, you approve the actions, and anything can be undone.
             </p>
+
+            {/* Quick Prompt Chips */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+              {QUICK_PROMPTS.map((qp, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setQuery(qp.prompt)}
+                  style={{
+                    background: '#1e293b',
+                    border: '1px solid #334155',
+                    color: '#cbd5e1',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {qp.label}
+                </button>
+              ))}
+            </div>
 
             <form onSubmit={handleCreatePlan}>
               <div style={{ display: 'flex', gap: '12px' }}>
@@ -378,7 +538,7 @@ export default function App() {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="e.g. Organize my PDFs and spreadsheets into separate folders, and find duplicates..."
+                  placeholder="e.g. Organize PDFs in my test folder by type, and find duplicate files..."
                   style={{
                     flex: 1,
                     padding: '14px 18px',
@@ -421,7 +581,7 @@ export default function App() {
               borderRadius: '14px',
               padding: '24px'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                     <span style={{
@@ -439,28 +599,49 @@ export default function App() {
                   <h3 style={{ fontSize: '18px', fontWeight: '600' }}>Plan Summary: {currentPlan.summary}</h3>
                 </div>
 
-                {currentPlan.actions.length > 0 && !executionSummary && (
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <button
-                    onClick={handleApproveAndExecute}
-                    disabled={isExecuting}
+                    onClick={handleDiscardPlan}
                     style={{
-                      padding: '12px 24px',
-                      background: isExecuting ? '#475569' : '#10b981',
-                      color: '#ffffff',
+                      padding: '10px 18px',
+                      background: '#374151',
+                      color: '#f3f4f6',
                       border: 'none',
-                      borderRadius: '10px',
+                      borderRadius: '8px',
                       fontWeight: '600',
-                      fontSize: '15px',
+                      fontSize: '14px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                      gap: '6px'
                     }}
                   >
-                    <CheckCircle2 size={18} />
-                    {isExecuting ? 'Executing...' : 'Approve & Execute Plan'}
+                    <XCircle size={16} />
+                    Discard
                   </button>
-                )}
+
+                  {currentPlan.actions.length > 0 && !executionSummary && (
+                    <button
+                      onClick={handleApproveAndExecute}
+                      disabled={isExecuting}
+                      style={{
+                        padding: '10px 22px',
+                        background: isExecuting ? '#475569' : '#10b981',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: '600',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                      }}
+                    >
+                      <CheckCircle2 size={16} />
+                      {isExecuting ? 'Executing...' : 'Approve & Execute Plan'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Action items table */}
@@ -478,7 +659,7 @@ export default function App() {
                     {currentPlan.actions.length === 0 ? (
                       <tr>
                         <td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
-                          No files needed moving. Workspace is clean!
+                          No files needed moving. Workspace is already clean!
                         </td>
                       </tr>
                     ) : (
@@ -519,14 +700,14 @@ export default function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                 <CheckCircle2 size={24} color="#34d399" />
                 <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#ecfdf5' }}>
-                  Execution Complete — Status: {executionSummary.status}
+                  Execution Complete — Status: {executionSummary.status.toUpperCase()}
                 </h3>
               </div>
               <p style={{ color: '#a7f3d0', fontSize: '14px', marginBottom: '16px' }}>
-                Completed: <strong>{executionSummary.completed_actions}</strong> | Failed: <strong>{executionSummary.failed_actions}</strong> | Skipped: <strong>{executionSummary.skipped_actions}</strong>
+                Total Actions: <strong>{executionSummary.total_actions}</strong> | Completed: <strong>{executionSummary.completed_actions}</strong> | Failed: <strong>{executionSummary.failed_actions}</strong> | Skipped: <strong>{executionSummary.skipped_actions}</strong>
               </p>
 
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
                 <button
                   onClick={() => setTab('ledger')}
                   style={{
@@ -541,6 +722,19 @@ export default function App() {
                 >
                   View in Action Ledger &rarr;
                 </button>
+                <button
+                  onClick={handleDiscardPlan}
+                  style={{
+                    background: 'transparent',
+                    color: '#ecfdf5',
+                    border: '1px solid #10b981',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    fontSize: '13px'
+                  }}
+                >
+                  Done
+                </button>
               </div>
             </div>
           )}
@@ -550,26 +744,46 @@ export default function App() {
       {/* TAB 2: ACTION LEDGER */}
       {tab === 'ledger' && (
         <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h2 style={{ fontSize: '20px', fontWeight: '600' }}>Immutable Action Ledger</h2>
               <p style={{ color: '#94a3b8', fontSize: '14px' }}>
                 Full audit trail of all executed tasks and safe rollbacks.
               </p>
             </div>
-            <button
-              onClick={loadActions}
-              style={{
-                padding: '8px 14px',
-                background: '#1e293b',
-                color: '#cbd5e1',
-                border: '1px solid #334155',
-                borderRadius: '8px',
-                fontSize: '13px'
-              }}
-            >
-              Refresh
-            </button>
+            
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <select
+                value={ledgerFilter}
+                onChange={(e) => setLedgerFilter(e.target.value as 'all' | 'completed' | 'undone')}
+                style={{
+                  background: '#1e293b',
+                  color: '#cbd5e1',
+                  border: '1px solid #334155',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  fontSize: '13px'
+                }}
+              >
+                <option value="all">All Events ({actions.length})</option>
+                <option value="completed">Active Changes</option>
+                <option value="undone">Rolled Back</option>
+              </select>
+
+              <button
+                onClick={loadActions}
+                style={{
+                  padding: '6px 12px',
+                  background: '#1e293b',
+                  color: '#cbd5e1',
+                  border: '1px solid #334155',
+                  borderRadius: '8px',
+                  fontSize: '13px'
+                }}
+              >
+                Refresh
+              </button>
+            </div>
           </div>
 
           <div style={{ overflowX: 'auto' }}>
@@ -584,14 +798,14 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {actions.length === 0 ? (
+                {filteredActions.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ padding: '28px', textAlign: 'center', color: '#64748b' }}>
-                      No actions recorded yet. Run a plan to see history here!
+                      No actions match the selected filter.
                     </td>
                   </tr>
                 ) : (
-                  actions.map((act) => (
+                  filteredActions.map((act) => (
                     <tr key={act.id} style={{ borderBottom: '1px solid #1e293b' }}>
                       <td style={{ padding: '12px', color: '#64748b', fontSize: '12px' }}>
                         {act.created_at ? new Date(act.created_at).toLocaleTimeString() : '—'}
@@ -632,7 +846,7 @@ export default function App() {
                             }}
                           >
                             <RotateCcw size={14} />
-                            {undoingId === act.id ? 'Undoing...' : 'Undo'}
+                            {undoingId === act.id ? 'Undoing...' : 'Undo Move'}
                           </button>
                         )}
                         {act.is_undone && (
@@ -651,11 +865,11 @@ export default function App() {
       {/* TAB 3: DUPLICATE FINDER */}
       {tab === 'duplicates' && (
         <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h2 style={{ fontSize: '20px', fontWeight: '600' }}>Cryptographic Duplicate Finder</h2>
               <p style={{ color: '#94a3b8', fontSize: '14px' }}>
-                Pre-filters by file size, then computes SHA-256 hashes. Safe and strictly read-only: no files are deleted.
+                Pre-filters by file size, then computes streaming SHA-256 hashes. Safe and strictly read-only: no files are deleted.
               </p>
             </div>
             <button
@@ -683,7 +897,7 @@ export default function App() {
             <div>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                 gap: '16px',
                 marginBottom: '24px'
               }}>
@@ -692,13 +906,13 @@ export default function App() {
                   <div style={{ fontSize: '24px', fontWeight: '700' }}>{dupResult.scanned_files}</div>
                 </div>
                 <div style={{ background: '#1e293b', padding: '16px', borderRadius: '10px' }}>
-                  <div style={{ color: '#94a3b8', fontSize: '13px' }}>Duplicate Sets</div>
+                  <div style={{ color: '#94a3b8', fontSize: '13px' }}>Duplicate Groups</div>
                   <div style={{ fontSize: '24px', fontWeight: '700', color: '#f59e0b' }}>
                     {dupResult.duplicate_groups.length}
                   </div>
                 </div>
                 <div style={{ background: '#1e293b', padding: '16px', borderRadius: '10px' }}>
-                  <div style={{ color: '#94a3b8', fontSize: '13px' }}>Potential Wasted Storage</div>
+                  <div style={{ color: '#94a3b8', fontSize: '13px' }}>Wasted Storage</div>
                   <div style={{ fontSize: '24px', fontWeight: '700', color: '#38bdf8' }}>
                     {(dupResult.total_wasted_bytes / 1024).toFixed(1)} KB
                   </div>
@@ -718,7 +932,7 @@ export default function App() {
                       borderRadius: '10px',
                       padding: '16px'
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
                         <span style={{ fontSize: '13px', fontWeight: '600', color: '#f59e0b' }}>
                           Duplicate Group #{idx + 1} ({group.count} copies, {(group.size_bytes / 1024).toFixed(1)} KB each)
                         </span>
@@ -734,9 +948,13 @@ export default function App() {
                             color: '#e2e8f0',
                             padding: '6px 10px',
                             background: '#0f172a',
-                            borderRadius: '6px'
+                            borderRadius: '6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
                           }}>
-                            {p}
+                            <FileCheck size={14} color="#38bdf8" />
+                            <span>{p}</span>
                           </li>
                         ))}
                       </ul>
@@ -835,7 +1053,9 @@ export default function App() {
                     background: '#1e293b',
                     padding: '16px',
                     borderRadius: '10px',
-                    border: '1px solid #334155'
+                    border: '1px solid #334155',
+                    flexWrap: 'wrap',
+                    gap: '12px'
                   }}>
                     <div>
                       <div style={{ fontSize: '16px', fontWeight: '600', color: '#f8fafc' }}>{wf.name}</div>
@@ -869,7 +1089,72 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* TAB 5: WORKSPACES */}
+      {tab === 'workspaces' && (
+        <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
+          <div style={{ marginBottom: '20px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '600' }}>Allowed Workspaces</h2>
+            <p style={{ color: '#94a3b8', fontSize: '14px' }}>
+              Idler's authoritative security layer confines all actions to these allowlisted host directories.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {workspaces.map((ws, idx) => (
+              <div key={idx} style={{
+                background: '#1e293b',
+                border: selectedWorkspace === ws.path ? '1px solid #3b82f6' : '1px solid #334155',
+                borderRadius: '10px',
+                padding: '16px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <div>
+                    <span style={{ fontFamily: 'monospace', fontWeight: '600', color: '#38bdf8' }}>{ws.path}</span>
+                    <span style={{ marginLeft: '12px', fontSize: '13px', color: '#94a3b8' }}>
+                      ({ws.files_count} files, {(ws.total_size_bytes / 1024).toFixed(1)} KB)
+                    </span>
+                  </div>
+                  {selectedWorkspace === ws.path ? (
+                    <span style={{ fontSize: '12px', background: '#1e3a8a', color: '#93c5fd', padding: '3px 8px', borderRadius: '4px' }}>
+                      Active Workspace
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => setSelectedWorkspace(ws.path)}
+                      style={{
+                        padding: '4px 10px',
+                        background: '#374151',
+                        color: '#f9fafb',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '12px'
+                      }}
+                    >
+                      Select
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {ws.preview.map((f, fIdx) => (
+                    <span key={fIdx} style={{
+                      fontSize: '12px',
+                      background: '#0f172a',
+                      color: '#cbd5e1',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontFamily: 'monospace'
+                    }}>
+                      {f.name} <span style={{ color: '#64748b' }}>({f.category})</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

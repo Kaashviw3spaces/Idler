@@ -41,15 +41,15 @@ def validate_action_policy(
     if "delete" in action.type.value.lower():
         return False, "Permanent file deletion is strictly disallowed in the MVP."
 
-    # 3. Disallowed system file names
-    src_name = Path(action.source).name
-    if src_name in DISALLOWED_FILE_NAMES:
-        return False, f"Modifying sensitive configuration file '{src_name}' is blocked by policy."
+    # 3. Disallowed system file names anywhere in path components
+    src_parts = set(Path(action.source).parts)
+    if any(p in DISALLOWED_FILE_NAMES for p in src_parts):
+        return False, f"Modifying sensitive configuration file in '{action.source}' is blocked by policy."
 
     if action.destination:
-        dest_name = Path(action.destination).name
-        if dest_name in DISALLOWED_FILE_NAMES:
-            return False, f"Targeting sensitive file '{dest_name}' is blocked by policy."
+        dest_parts = set(Path(action.destination).parts)
+        if any(p in DISALLOWED_FILE_NAMES for p in dest_parts):
+            return False, f"Targeting sensitive path in '{action.destination}' is blocked by policy."
 
     return True, None
 
@@ -74,4 +74,3 @@ def check_collision_and_preconditions(
             raise DestinationCollisionError(
                 f"Destination already exists: '{dest_path}'. Overwriting files is forbidden by policy."
             )
-
