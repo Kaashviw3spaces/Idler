@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: idler-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - IDLER_ENV=development
+      - IDLER_HOST=0.0.0.0
+      - IDLER_PORT=8000
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_MODEL=gemma2:2b
+      - IDLER_ALLOWED_WORKSPACES=/app/test_workspace
+      - DATABASE_URL=sqlite:////app/idler.db
+    volumes:
+      - ./test_workspace:/app/test_workspace
+      - ./idler.db:/app/idler.db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
