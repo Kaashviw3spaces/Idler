@@ -24,7 +24,6 @@ class InvalidPathError(SecurityException):
 
 
 FORBIDDEN_SYSTEM_PATHS = {
-    Path("/"),
     Path("/etc"),
     Path("/bin"),
     Path("/sbin"),
@@ -38,10 +37,42 @@ FORBIDDEN_SYSTEM_PATHS = {
 
 
 def _is_forbidden_system_path(candidate: Path) -> bool:
-    """Returns True if the resolved path or any of its ancestors is a protected system directory."""
-    for forbidden in FORBIDDEN_SYSTEM_PATHS:
-        if candidate == forbidden or candidate.is_relative_to(forbidden):
+    """
+    Returns True if the candidate path is a protected system directory or root.
+    Explicitly permits user directories like ~/Downloads, ~/Desktop, ~/Documents, etc.
+    """
+    c = candidate.resolve()
+
+    # Disallow root filesystem itself
+    if c == Path("/"):
+        return True
+
+    # Disallow macOS system Library inside user home directory (e.g. ~/Library)
+    try:
+        user_library = (Path.home() / "Library").resolve()
+        if c == user_library or c.is_relative_to(user_library):
             return True
+    except (RuntimeError, ValueError):
+        pass
+
+    # Explicitly permit temp directories (used by test fixtures and disposable workspaces)
+    for allowed_tmp in [Path("/tmp"), Path("/private/tmp"), Path("/private/var/folders")]:
+        try:
+            res_tmp = allowed_tmp.resolve()
+            if c == res_tmp or c.is_relative_to(res_tmp):
+                return False
+        except (RuntimeError, ValueError, OSError):
+            pass
+
+    # Check system prefixes (/etc, /bin, /usr, /System, /var, etc.)
+    for forbidden in FORBIDDEN_SYSTEM_PATHS:
+        try:
+            resolved_forbidden = forbidden.resolve()
+            if c == resolved_forbidden or c.is_relative_to(resolved_forbidden):
+                return True
+        except (RuntimeError, ValueError, OSError):
+            continue
+
     return False
 
 

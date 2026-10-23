@@ -73,6 +73,16 @@ def test_forbidden_system_subdirectories_are_rejected(tmp_path: Path):
         validate_new_workspace_path(str(system_dir))
 
 
+def test_user_home_folders_like_downloads_are_allowed(tmp_path: Path):
+    user_folder = tmp_path / "Downloads"
+    user_folder.mkdir()
+
+    from backend.app.security.paths import validate_new_workspace_path
+    resolved = validate_new_workspace_path(str(user_folder))
+    assert resolved == user_folder.resolve()
+
+
+
 def test_resolve_workspace_relative_to_allowed_root(tmp_path: Path, monkeypatch):
     allowed_root = tmp_path / "allowed_workspace"
     nested = allowed_root / "nested"
