@@ -166,6 +166,20 @@ def test_saved_workflow_flow(client_and_workspace):
     assert run_res["status"] == "completed"
     assert (workspace / "Documents" / "doc.pdf").exists()
 
+    # 4. Toggle workflow status (pause / resume)
+    toggle_resp = client.patch(f"/api/workflows/{wf_id}/toggle")
+    assert toggle_resp.status_code == 200
+    assert toggle_resp.json()["is_active"] is False
+
+    # 5. Delete workflow
+    del_resp = client.delete(f"/api/workflows/{wf_id}")
+    assert del_resp.status_code == 200
+    assert del_resp.json()["status"] == "deleted"
+
+    # Verify list is now empty
+    list_after = client.get("/api/workflows")
+    assert len(list_after.json()) == 0
+
 
 def test_trash_duplicate_soft_delete(client_and_workspace, monkeypatch):
     client, workspace = client_and_workspace

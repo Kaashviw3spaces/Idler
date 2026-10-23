@@ -1563,25 +1563,64 @@ export default function App() {
                       {wf.description && <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{wf.description}</div>}
                     </div>
 
-                    <button
-                      onClick={() => handleRunWorkflow(wf.id, wf.name)}
-                      disabled={isRunningWf === wf.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '10px 18px',
-                        background: isRunningWf === wf.id ? '#475569' : '#10b981',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontWeight: '600',
-                        fontSize: '13px'
-                      }}
-                    >
-                      <Play size={14} />
-                      {isRunningWf === wf.id ? 'Running...' : 'Run Now'}
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {wf.schedule_cron && (
+                        <button
+                          onClick={() => handleToggleWorkflow(wf.id)}
+                          title={wf.is_active ? 'Click to pause auto-schedule' : 'Click to enable auto-schedule'}
+                          style={{
+                            padding: '8px 12px',
+                            background: wf.is_active ? '#064e3b' : '#374151',
+                            color: wf.is_active ? '#6ee7b7' : '#9ca3af',
+                            border: '1px solid #334155',
+                            borderRadius: '8px',
+                            fontWeight: '600',
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {wf.is_active ? 'Active' : 'Paused'}
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleRunWorkflow(wf.id, wf.name)}
+                        disabled={isRunningWf === wf.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '8px 16px',
+                          background: isRunningWf === wf.id ? '#475569' : '#10b981',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontWeight: '600',
+                          fontSize: '13px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Play size={14} />
+                        {isRunningWf === wf.id ? 'Running...' : 'Run Now'}
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteWorkflow(wf.id, wf.name)}
+                        title="Delete workflow"
+                        style={{
+                          padding: '8px 10px',
+                          background: '#450a0a',
+                          color: '#fca5a5',
+                          border: '1px solid #7f1d1d',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
