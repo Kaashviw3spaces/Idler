@@ -25,7 +25,15 @@ import {
   Download,
   Pencil,
   Check,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
+import {
+  playTaskCompleteChime,
+  playMacChime,
+  playWindowsChime,
+  SoundPlatform,
+} from './sound';
 import {
   PlanResponse,
   TaskExecutionSummary,
@@ -164,6 +172,15 @@ export default function App() {
   const [batchNewSubdir, setBatchNewSubdir] = useState('');
   const [isSavingPlan, setIsSavingPlan] = useState(false);
 
+  // Audio Chime State
+  const [soundMuted, setSoundMuted] = useState<boolean>(() => {
+    return localStorage.getItem('idler_chime_muted') === 'true';
+  });
+  const [soundMode, setSoundMode] = useState<SoundPlatform>(() => {
+    return (localStorage.getItem('idler_sound_mode') as SoundPlatform) || 'auto';
+  });
+  const [showSoundMenu, setShowSoundMenu] = useState<boolean>(false);
+
   // Action Ledger State
   const [actions, setActions] = useState<ActionRecord[]>([]);
   const [undoingId, setUndoingId] = useState<string | null>(null);
@@ -300,6 +317,7 @@ export default function App() {
       setExecutionSummary(summary);
       addToast('success', `Execution complete — ${summary.completed_actions}/${summary.total_actions} actions succeeded`);
       notifyUser('Idler: Task Executed', `Completed ${summary.completed_actions} of ${summary.total_actions} actions`);
+      playTaskCompleteChime(soundMode);
       await loadActions();
       await loadWorkspaces();
       if (selectedWorkspace) {
@@ -615,6 +633,7 @@ export default function App() {
       setTab('planner');
       addToast('success', `Workflow "${name}" completed — ${res.completed_actions}/${res.total_actions} actions`);
       notifyUser('Idler: Workflow Done', `Workflow "${name}" executed successfully`);
+      playTaskCompleteChime(soundMode);
       await loadActions();
       await loadWorkspaces();
       if (selectedWorkspace) {
@@ -649,6 +668,21 @@ export default function App() {
       const msg = err instanceof Error ? err.message : String(err);
       addToast('error', msg);
     }
+  }
+
+  function toggleSoundMute() {
+    const next = !soundMuted;
+    setSoundMuted(next);
+    localStorage.setItem('idler_chime_muted', String(next));
+    addToast('info', next ? 'Audio chimes muted' : 'Audio chimes enabled');
+  }
+
+  function handleChangeSoundMode(mode: SoundPlatform) {
+    setSoundMode(mode);
+    localStorage.setItem('idler_sound_mode', mode);
+    if (mode === 'mac') playMacChime();
+    else if (mode === 'win') playWindowsChime();
+    else playTaskCompleteChime('auto');
   }
 
   const filteredLiveFiles = useMemo(() => {
@@ -784,6 +818,133 @@ export default function App() {
             <span>
               {isBackendOffline ? 'Backend Offline' : (health?.ollama_model ? `AI: ${health.ollama_model}` : 'AI Ready')}
             </span>
+          </div>
+
+          {/* Native Audio Chime Menu */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowSoundMenu(!showSoundMenu)}
+              title="Native completion chime settings (macOS & Windows)"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                background: '#0f172a',
+                border: '1px solid #1e293b',
+                borderRadius: '8px',
+                fontSize: '13px',
+                color: soundMuted ? '#94a3b8' : '#38bdf8',
+                cursor: 'pointer'
+              }}
+            >
+              {soundMuted ? <VolumeX size={14} color="#94a3b8" /> : <Volume2 size={14} color="#38bdf8" />}
+              <span>Chime: <strong>{soundMuted ? 'Muted' : soundMode === 'auto' ? 'Auto (OS)' : soundMode.toUpperCase()}</strong></span>
+            </button>
+
+            {showSoundMenu && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 8px)',
+                right: 0,
+                width: '260px',
+                background: '#0f172a',
+                border: '1px solid #334155',
+                borderRadius: '10px',
+                padding: '14px',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                zIndex: 100,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#f8fafc' }}>
+                    Completion Chimes
+                  </span>
+                  <button
+                    onClick={toggleSoundMute}
+                    style={{
+                      background: soundMuted ? '#374151' : '#047857',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '3px 8px',
+                      borderRadius: '5px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {soundMuted ? 'Unmute' : 'Mute'}
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                  Plays an audio chime when background scheduled tasks and workflows finish.
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {(['auto', 'mac', 'win'] as SoundPlatform[]).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => handleChangeSoundMode(mode)}
+                      style={{
+                        flex: 1,
+                        padding: '5px 0',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        background: soundMode === mode ? '#2563eb' : '#1e293b',
+                        color: soundMode === mode ? '#ffffff' : '#cbd5e1',
+                        border: '1px solid #334155',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {mode === 'auto' ? 'Auto' : mode === 'mac' ? '🍎 Mac' : '🪟 Win'}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '6px', borderTop: '1px solid #1e293b' }}>
+                  <button
+                    onClick={() => playMacChime()}
+                    style={{
+                      padding: '6px',
+                      background: '#1e293b',
+                      color: '#93c5fd',
+                      border: '1px solid #334155',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <span>🍎</span> Test macOS Glass Chime
+                  </button>
+                  <button
+                    onClick={() => playWindowsChime()}
+                    style={{
+                      padding: '6px',
+                      background: '#1e293b',
+                      color: '#93c5fd',
+                      border: '1px solid #334155',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <span>🪟</span> Test Windows Notify Chime
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>

@@ -1,0 +1,51 @@
+{
+  "name": "idler-desktop",
+  "version": "0.1.0",
+  "description": "Idler — Native macOS Menu-Bar & Windows Tray Desktop App",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "package:mac": "electron-builder --mac dir",
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:win": "electron-builder --win portable"
+  },
+  "author": "Idler Team",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^34.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.idler.desktop",
+    "productName": "Idler",
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [
+        "dmg",
+        "zip",
+        "dir"
+      ],
+      "icon": "assets/icon.png",
+      "extendInfo": {
+        "LSUIElement": 1,
+        "NSHighResolutionCapable": true
+      }
+    },
+    "win": {
+      "target": [
+        "portable",
+        "nsis"
+      ],
+      "icon": "assets/icon.png"
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "assets/**/*",
+      "../frontend/dist/**/*"
+    ]
+  }
+}

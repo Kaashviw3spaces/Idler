@@ -120,6 +120,13 @@ class WorkflowService:
         self.db.add(run_record)
         self.db.commit()
 
+        # Step 6: Play native audio chime when background task / workflow finishes
+        try:
+            from backend.app.services.sound import play_system_chime
+            play_system_chime()
+        except Exception:
+            pass
+
         return summary
 
     def delete_workflow(self, workflow_id: str) -> bool:

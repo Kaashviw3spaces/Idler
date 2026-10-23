@@ -61,6 +61,15 @@ def health_check():
     }
 
 
+@router.post("/system/chime")
+def trigger_system_chime(platform: Optional[str] = Query(default=None, description="mac or win override")):
+    """
+    Triggers the OS-native background completion chime for macOS (Glass) or Windows (SystemAsterisk).
+    """
+    from backend.app.services.sound import play_system_chime
+    return play_system_chime(platform_override=platform)
+
+
 @router.get("/workspaces")
 def list_workspaces(db: Session = Depends(get_db)):
     """Lists allowed workspaces, registered host directories, and key subfolders."""
@@ -100,26 +109,34 @@ def list_workspaces(db: Session = Depends(get_db)):
                 "is_removable": ws_str in db_workspaces,
             })
 
-            # For test_workspace fixture, also retain immediate subfolders as direct top-level workspace options
-            if "test_workspace" in ws_str:
-                try:
-                    for sub in ws.iterdir():
-                        sub_str = str(sub)
-                        if sub.is_dir() and not sub.name.startswith(".") and sub_str not in seen_paths:
-                            seen_paths.add(sub_str)
+            # Discover and list immediate subfolders that contain files
+            try:
+                for sub in sorted(ws.iterdir()):
+                    sub_str = str(sub)
+                    if (
+                        sub.is_dir()
+                        and not sub.name.startswith(".")
+                        and not sub.name.endswith(".app")
+                        and sub_str not in seen_paths
+                    ):
+                        try:
                             sub_scan = scan_directory(".", sub, recursive=False, max_files=50)
-                            result.append({
-                                "name": f"{ws.name}/{sub.name}",
-                                "path": sub_str,
-                                "files_count": sub_scan.total_files,
-                                "total_size_bytes": sub_scan.total_size_bytes,
-                                "subdirectories": [],
-                                "folder_counts": {},
-                                "preview": [f.model_dump() for f in sub_scan.files[:10]],
-                                "is_removable": False,
-                            })
-                except (OSError, PermissionError):
-                    pass
+                            if sub_scan.total_files > 0:
+                                seen_paths.add(sub_str)
+                                result.append({
+                                    "name": f"{display_name}/{sub.name}",
+                                    "path": sub_str,
+                                    "files_count": sub_scan.total_files,
+                                    "total_size_bytes": sub_scan.total_size_bytes,
+                                    "subdirectories": [],
+                                    "folder_counts": {},
+                                    "preview": [f.model_dump() for f in sub_scan.files[:10]],
+                                    "is_removable": False,
+                                })
+                        except (OSError, PermissionError):
+                            continue
+            except (OSError, PermissionError):
+                pass
 
     return result
 

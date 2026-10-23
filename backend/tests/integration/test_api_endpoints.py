@@ -441,6 +441,21 @@ def test_subdirectories_visibility_in_workspace_and_files(client_and_workspace):
     assert "keynote.key" in names
 
 
+def test_system_chime_endpoint(client_and_workspace):
+    client, _ = client_and_workspace
+
+    # Test macOS chime
+    mac_resp = client.post("/api/system/chime?platform=mac")
+    assert mac_resp.status_code == 200
+    assert mac_resp.json()["platform"] == "macos"
+
+    # Test Windows chime
+    win_resp = client.post("/api/system/chime?platform=win")
+    assert win_resp.status_code == 200
+    assert win_resp.json()["platform"] == "windows"
+
+
+
 
 
 
