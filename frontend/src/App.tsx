@@ -733,7 +733,7 @@ export default function App() {
 
   if (viewMode === 'cozy') {
     return (
-      <div style={{ padding: '8px', minHeight: '100vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'transparent' }}>
+      <div style={{ padding: 0, margin: 0, background: 'transparent' }}>
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
         <CozyPopover
           workspaces={workspaces}

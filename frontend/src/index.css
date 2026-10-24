@@ -20,9 +20,16 @@
   padding: 0;
 }
 
+html, body, #root {
+  background: transparent !important;
+  background-color: transparent !important;
+  margin: 0;
+  padding: 0;
+}
+
 body {
   font-family: var(--font-sans);
-  background-color: transparent;
+  background-color: transparent !important;
   color: var(--text-main);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;

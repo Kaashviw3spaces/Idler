@@ -98,17 +98,22 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   // Dynamic window resizing based on content height
   useEffect(() => {
     if (!containerRef.current) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const height = Math.ceil(entry.contentRect.height + 28);
-        if (window.idlerDesktop?.resizeHeight) {
-          window.idlerDesktop.resizeHeight(height);
-        }
+    const updateHeight = () => {
+      if (!containerRef.current) return;
+      const height = Math.ceil(containerRef.current.offsetHeight || containerRef.current.getBoundingClientRect().height);
+      if (window.idlerDesktop?.resizeHeight && height > 100) {
+        window.idlerDesktop.resizeHeight(height);
       }
+    };
+
+    updateHeight();
+
+    const ro = new ResizeObserver(() => {
+      updateHeight();
     });
     ro.observe(containerRef.current);
     return () => ro.disconnect();
-  }, []);
+  }, [activeTab, optionsExpanded, actions.length, workflows.length]);
 
   // 8 Minimalist Chips in 2x4 Grid
   const chipsRow1 = [
