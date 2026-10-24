@@ -377,40 +377,6 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
           position: 'relative',
         }}
       >
-        {/* Floating Tooltip Pill on Hover */}
-        {hoveredTab && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 'calc(100% + 8px)',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              background: 'rgba(18, 16, 22, 0.98)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              borderRadius: '8px',
-              padding: '4px 10px',
-              fontSize: '11px',
-              fontWeight: '600',
-              color: '#ffffff',
-              whiteSpace: 'nowrap',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-              pointerEvents: 'none',
-              zIndex: 50,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              animation: 'popoverTooltipIn 0.15s ease-out forwards',
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', color: '#60a5fa' }}>
-              {tabs.find((t) => t.id === hoveredTab)?.icon}
-            </span>
-            <span>{tabs.find((t) => t.id === hoveredTab)?.label}</span>
-          </div>
-        )}
-
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           const isHovered = hoveredTab === tab.id;
