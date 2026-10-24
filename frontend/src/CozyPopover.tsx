@@ -14,6 +14,12 @@ import {
   Trash2,
   Play,
   ChevronRight,
+  FileText,
+  Image as ImageIcon,
+  FileCode,
+  Archive,
+  FileSpreadsheet,
+  File,
 } from 'lucide-react';
 import {
   PlanResponse,
@@ -22,6 +28,7 @@ import {
   DuplicateScanResult,
   WorkflowItem,
   ProjectInspectionResult,
+  WorkspaceFilePreview,
 } from './types';
 import { SoundPlatform, playTaskCompleteChime } from './sound';
 import * as api from './api';
@@ -41,6 +48,8 @@ interface CozyPopoverProps {
   onToggleSoundMute: () => void;
   onOpenStudio?: () => void;
   onQuit?: () => void;
+  liveFiles?: WorkspaceFilePreview[];
+  isLoadingFiles?: boolean;
   addToast: (kind: 'success' | 'error' | 'info', message: string) => void;
 }
 
@@ -50,6 +59,28 @@ function fmtBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function getFileIcon(category?: string, filename?: string) {
+  const cat = (category || '').toLowerCase();
+  const ext = filename ? filename.slice(filename.lastIndexOf('.')).toLowerCase() : '';
+
+  if (cat === 'images' || ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico'].includes(ext)) {
+    return <ImageIcon size={13} color="#f472b6" />;
+  }
+  if (cat === 'code' || ['.py', '.js', '.ts', '.tsx', '.jsx', '.html', '.css', '.json', '.c', '.cpp', '.rs', '.go', '.sh', '.yaml', '.yml'].includes(ext)) {
+    return <FileCode size={13} color="#34d399" />;
+  }
+  if (cat === 'spreadsheets' || ['.csv', '.xlsx', '.xls', '.tsv'].includes(ext)) {
+    return <FileSpreadsheet size={13} color="#4ade80" />;
+  }
+  if (cat === 'archives' || ['.zip', '.tar', '.gz', '.7z', '.rar'].includes(ext)) {
+    return <Archive size={13} color="#fb923c" />;
+  }
+  if (cat === 'documents' || ['.pdf', '.doc', '.docx', '.txt', '.md', '.rtf'].includes(ext)) {
+    return <FileText size={13} color="#60a5fa" />;
+  }
+  return <File size={13} color="#94a3b8" />;
 }
 
 export const CozyPopover: React.FC<CozyPopoverProps> = ({
@@ -67,6 +98,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   onToggleSoundMute,
   onOpenStudio,
   onQuit,
+  liveFiles = [],
+  isLoadingFiles = false,
   addToast,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -151,7 +184,54 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   const [manualFolderPath, setManualFolderPath] = useState('');
   const [isRegisteringFolder, setIsRegisteringFolder] = useState(false);
 
-  const activeWsObj = workspaces.find((w) => w.path === selectedWorkspace) || workspaces[0];
+  // Active directory live files state
+  const [workspaceFileFilter, setWorkspaceFileFilter] = useState('');
+  const [internalFiles, setInternalFiles] = useState<WorkspaceFilePreview[]>([]);
+  const [isFetchingInternalFiles, setIsFetchingInternalFiles] = useState(false);
+
+  useEffect(() => {
+    if (!selectedWorkspace) return;
+    let cancelled = false;
+    setIsFetchingInternalFiles(true);
+    api.fetchWorkspaceFiles(selectedWorkspace)
+      .then((res) => {
+        if (!cancelled && res.files) {
+          setInternalFiles(res.files);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setInternalFiles([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsFetchingInternalFiles(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedWorkspace]);
+
+  // Clean workspaces excluding any test workspaces
+  const cleanWorkspaces = workspaces.filter(
+    (w) => !w.path.toLowerCase().includes('test_workspace') && !w.name.toLowerCase().includes('test_workspace')
+  );
+
+  const activeWsObj = cleanWorkspaces.find((w) => w.path === selectedWorkspace) || cleanWorkspaces[0];
+
+  // Resolve files for active directory
+  const activeFilesList = (liveFiles && liveFiles.length > 0)
+    ? liveFiles
+    : (internalFiles.length > 0 ? internalFiles : (activeWsObj?.preview || []));
+
+  const filteredActiveFiles = activeFilesList.filter((f) => {
+    if (!workspaceFileFilter.trim()) return true;
+    const q = workspaceFileFilter.toLowerCase();
+    return (
+      f.name.toLowerCase().includes(q) ||
+      (f.relative_path && f.relative_path.toLowerCase().includes(q)) ||
+      (f.category && f.category.toLowerCase().includes(q))
+    );
+  });
 
   // Dynamic window resizing based on content height
   useEffect(() => {
@@ -171,7 +251,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     });
     ro.observe(containerRef.current);
     return () => ro.disconnect();
-  }, [activeTab, optionsExpanded, actions.length, workflows.length, workspaces.length, isAddingManualFolder]);
+  }, [activeTab, optionsExpanded, actions.length, workflows.length, cleanWorkspaces.length, isAddingManualFolder, activeFilesList.length, isFetchingInternalFiles]);
 
   // 8 Minimalist Chips in 2x4 Grid
   const chipsRow1 = [
@@ -217,7 +297,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     },
     {
       id: 'workspaces',
-      label: `Workspaces (${workspaces.length})`,
+      label: `Workspaces (${cleanWorkspaces.length})`,
       icon: <FolderOpen size={15} />,
     },
   ];
@@ -1300,7 +1380,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             {/* Top Bar: Subtitle & Minimalist + Add Folder Button */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
               <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-                Select active directory to scan ({workspaces.length})
+                Select active directory to scan ({cleanWorkspaces.length})
               </span>
               <button
                 onClick={handleSelectAndAddFolder}
@@ -1382,8 +1462,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             )}
 
             {/* List of Registered Folders */}
-            <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {workspaces.map((ws) => {
+            <div style={{ maxHeight: '115px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              {cleanWorkspaces.map((ws) => {
                 const isSel = ws.path === selectedWorkspace;
                 return (
                   <div
@@ -1398,7 +1478,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                       border: '1px solid ' + (isSel ? '#3b82f6' : 'rgba(255, 255, 255, 0.08)'),
                       boxShadow: isSel ? '0 4px 14px rgba(37, 99, 235, 0.3)' : undefined,
                       borderRadius: '10px',
-                      padding: '8px 10px',
+                      padding: '7px 10px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
@@ -1409,8 +1489,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
                       <div
                         style={{
-                          width: '26px',
-                          height: '26px',
+                          width: '24px',
+                          height: '24px',
                           borderRadius: '6px',
                           background: isSel ? '#2563eb' : 'rgba(255, 255, 255, 0.08)',
                           display: 'flex',
@@ -1419,7 +1499,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                           flexShrink: 0,
                         }}
                       >
-                        <FolderOpen size={14} color={isSel ? '#ffffff' : '#94a3b8'} />
+                        <FolderOpen size={13} color={isSel ? '#ffffff' : '#94a3b8'} />
                       </div>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1479,6 +1559,109 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   </div>
                 );
               })}
+            </div>
+
+            {/* Active Directory Files Preview Section */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '2px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <FileText size={12} color="#3b82f6" />
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Files in {activeWsObj?.name || 'Active Directory'} ({activeFilesList.length})
+                  </span>
+                </div>
+                {activeFilesList.length > 5 && (
+                  <input
+                    type="text"
+                    placeholder="Filter files…"
+                    value={workspaceFileFilter}
+                    onChange={(e) => setWorkspaceFileFilter(e.target.value)}
+                    style={{
+                      background: 'rgba(0, 0, 0, 0.4)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '6px',
+                      padding: '2px 7px',
+                      fontSize: '10px',
+                      color: '#f8fafc',
+                      outline: 'none',
+                      width: '95px',
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Scrollable Files Container */}
+              <div
+                style={{
+                  maxHeight: '160px',
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  background: 'rgba(0, 0, 0, 0.28)',
+                  border: '1px solid rgba(255, 255, 255, 0.07)',
+                  borderRadius: '10px',
+                  padding: '5px',
+                }}
+              >
+                {(isLoadingFiles || isFetchingInternalFiles) && activeFilesList.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '16px 8px', color: '#94a3b8', fontSize: '11px' }}>
+                    Scanning files…
+                  </div>
+                ) : filteredActiveFiles.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '16px 8px', color: '#94a3b8', fontSize: '11px' }}>
+                    {workspaceFileFilter ? 'No matching files found.' : 'No files in this directory.'}
+                  </div>
+                ) : (
+                  filteredActiveFiles.map((file, idx) => (
+                    <div
+                      key={`${file.relative_path || file.name}-${idx}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '4px 6px',
+                        borderRadius: '6px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid rgba(255, 255, 255, 0.04)',
+                        fontSize: '11px',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+                        {getFileIcon(file.category, file.name)}
+                        <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{ color: '#f1f5f9', fontWeight: '500' }}>{file.name}</span>
+                          {file.relative_path && file.relative_path !== file.name && (
+                            <span style={{ color: '#64748b', fontSize: '9px', marginLeft: '4px' }}>
+                              {file.relative_path.slice(0, file.relative_path.lastIndexOf('/') + 1)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        {file.category && (
+                          <span
+                            style={{
+                              fontSize: '9px',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              background: 'rgba(255, 255, 255, 0.07)',
+                              color: '#94a3b8',
+                              fontWeight: '500',
+                            }}
+                          >
+                            {file.category}
+                          </span>
+                        )}
+                        <span style={{ color: '#64748b', fontSize: '10px' }}>
+                          {fmtBytes(file.size_bytes || 0)}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         )}

@@ -82,6 +82,8 @@ def list_workspaces(db: Session = Depends(get_db)):
 
     for ws in workspaces:
         ws_str = str(ws)
+        if "test_workspace" in ws_str.lower():
+            continue
         if ws_str not in seen_paths and ws.exists() and ws.is_dir():
             seen_paths.add(ws_str)
             scan = scan_directory(".", ws, recursive=True, max_files=1000)
@@ -105,38 +107,9 @@ def list_workspaces(db: Session = Depends(get_db)):
                 "total_size_bytes": scan.total_size_bytes,
                 "subdirectories": subdirs_info,
                 "folder_counts": scan.folder_counts,
-                "preview": [f.model_dump() for f in scan.files[:10]],
+                "preview": [f.model_dump() for f in scan.files[:50]],
                 "is_removable": ws_str in db_workspaces,
             })
-
-            # Discover and list immediate subfolders that contain files
-            try:
-                for sub in sorted(ws.iterdir()):
-                    sub_str = str(sub)
-                    if (
-                        sub.is_dir()
-                        and not sub.name.startswith(".")
-                        and not sub.name.endswith(".app")
-                        and sub_str not in seen_paths
-                    ):
-                        try:
-                            sub_scan = scan_directory(".", sub, recursive=False, max_files=50)
-                            if sub_scan.total_files > 0:
-                                seen_paths.add(sub_str)
-                                result.append({
-                                    "name": f"{display_name}/{sub.name}",
-                                    "path": sub_str,
-                                    "files_count": sub_scan.total_files,
-                                    "total_size_bytes": sub_scan.total_size_bytes,
-                                    "subdirectories": [],
-                                    "folder_counts": {},
-                                    "preview": [f.model_dump() for f in sub_scan.files[:10]],
-                                    "is_removable": False,
-                                })
-                        except (OSError, PermissionError):
-                            continue
-            except (OSError, PermissionError):
-                pass
 
     return result
 

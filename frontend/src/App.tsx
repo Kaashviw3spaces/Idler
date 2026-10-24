@@ -772,6 +772,8 @@ export default function App() {
               window.idlerDesktop.quitApp();
             }
           }}
+          liveFiles={liveFiles}
+          isLoadingFiles={isLoadingFiles}
           addToast={addToast}
         />
       </div>

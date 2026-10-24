@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     # Allowed Workspaces (Security boundary)
     # Comma-separated paths or list of paths
     allowed_workspaces_raw: Union[str, List[str]] = Field(
-        default="./test_workspace",
+        default=str(Path.home() / "Downloads"),
         alias="IDLER_ALLOWED_WORKSPACES"
     )
 

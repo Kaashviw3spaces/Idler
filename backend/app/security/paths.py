@@ -101,14 +101,14 @@ def validate_new_workspace_path(path_str: str) -> Path:
 
 def get_all_allowed_roots(db: Optional[object] = None) -> list[Path]:
     """Returns all statically configured and dynamically registered allowed workspace roots."""
-    roots = list(settings.get_allowed_workspaces())
+    roots = [p for p in settings.get_allowed_workspaces() if "test_workspace" not in str(p).lower()]
     try:
         from backend.app.db.models import WorkspaceDB
         if db is not None:
             db_workspaces = db.query(WorkspaceDB).all()  # type: ignore[attr-defined]
             for w in db_workspaces:
                 p = Path(w.path).resolve()
-                if p not in roots and p.exists() and p.is_dir():
+                if "test_workspace" not in str(p).lower() and p not in roots and p.exists() and p.is_dir():
                     roots.append(p)
         else:
             from backend.app.db.database import SessionLocal
@@ -117,7 +117,7 @@ def get_all_allowed_roots(db: Optional[object] = None) -> list[Path]:
                 db_workspaces = session.query(WorkspaceDB).all()
                 for w in db_workspaces:
                     p = Path(w.path).resolve()
-                    if p not in roots and p.exists() and p.is_dir():
+                    if "test_workspace" not in str(p).lower() and p not in roots and p.exists() and p.is_dir():
                         roots.append(p)
             finally:
                 session.close()
@@ -130,7 +130,7 @@ def get_default_workspace() -> Path:
     """Returns the primary allowed workspace path."""
     workspaces = get_all_allowed_roots()
     if not workspaces:
-        fallback = Path("./test_workspace").resolve()
+        fallback = (Path.home() / "Downloads").resolve()
         fallback.mkdir(parents=True, exist_ok=True)
         return fallback
     workspaces[0].mkdir(parents=True, exist_ok=True)
