@@ -165,9 +165,11 @@ function createWindow() {
     mainWindow.loadFile(bundledUiPath);
   } else {
     mainWindow.loadURL('http://localhost:5173').catch(() => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.loadFile(bundledUiPath);
-      }
+      try {
+        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+          mainWindow.loadFile(bundledUiPath);
+        }
+      } catch {}
     });
   }
 
