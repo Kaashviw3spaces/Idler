@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Sparkles,
   History,
@@ -14,6 +14,7 @@ import {
   Trash2,
   Play,
   ChevronRight,
+  ChevronDown,
   FileText,
   Image as ImageIcon,
   FileCode,
@@ -233,6 +234,24 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     );
   });
 
+  const [visibleFileLimit, setVisibleFileLimit] = useState(8);
+  const [isFilesSectionExpanded, setIsFilesSectionExpanded] = useState(true);
+
+  // Reset file limit when switching workspace
+  useEffect(() => {
+    setVisibleFileLimit(8);
+  }, [selectedWorkspace]);
+
+  // Category counts breakdown for active workspace
+  const activeCategoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const f of activeFilesList) {
+      const c = f.category || 'other';
+      counts[c] = (counts[c] || 0) + 1;
+    }
+    return counts;
+  }, [activeFilesList]);
+
   // Dynamic window resizing based on content height
   useEffect(() => {
     if (!containerRef.current) return;
@@ -251,7 +270,18 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     });
     ro.observe(containerRef.current);
     return () => ro.disconnect();
-  }, [activeTab, optionsExpanded, actions.length, workflows.length, cleanWorkspaces.length, isAddingManualFolder, activeFilesList.length, isFetchingInternalFiles]);
+  }, [
+    activeTab,
+    optionsExpanded,
+    actions.length,
+    workflows.length,
+    cleanWorkspaces.length,
+    isAddingManualFolder,
+    activeFilesList.length,
+    isFetchingInternalFiles,
+    visibleFileLimit,
+    isFilesSectionExpanded,
+  ]);
 
   // 8 Minimalist Chips in 2x4 Grid
   const chipsRow1 = [
@@ -1564,13 +1594,26 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             {/* Active Directory Files Preview Section */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '2px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <FileText size={12} color="#3b82f6" />
-                  <span style={{ fontSize: '11px', fontWeight: '600', color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsFilesSectionExpanded(!isFilesSectionExpanded)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#cbd5e1',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                >
+                  {isFilesSectionExpanded ? <ChevronDown size={12} color="#3b82f6" /> : <ChevronRight size={12} color="#3b82f6" />}
+                  <span style={{ fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     Files in {activeWsObj?.name || 'Active Directory'} ({activeFilesList.length})
                   </span>
-                </div>
-                {activeFilesList.length > 5 && (
+                </button>
+                {activeFilesList.length > 5 && isFilesSectionExpanded && (
                   <input
                     type="text"
                     placeholder="Filter files…"
@@ -1590,78 +1633,161 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                 )}
               </div>
 
-              {/* Scrollable Files Container */}
-              <div
-                style={{
-                  maxHeight: '160px',
-                  overflowY: 'auto',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px',
-                  background: 'rgba(0, 0, 0, 0.28)',
-                  border: '1px solid rgba(255, 255, 255, 0.07)',
-                  borderRadius: '10px',
-                  padding: '5px',
-                }}
-              >
-                {(isLoadingFiles || isFetchingInternalFiles) && activeFilesList.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '16px 8px', color: '#94a3b8', fontSize: '11px' }}>
-                    Scanning files…
+              {isFilesSectionExpanded && (
+                <>
+                  {/* Category counts overview chips */}
+                  {Object.keys(activeCategoryCounts).length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '0 2px' }}>
+                      {Object.entries(activeCategoryCounts).map(([cat, count]) => (
+                        <span
+                          key={cat}
+                          style={{
+                            fontSize: '9px',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            color: '#94a3b8',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                          }}
+                        >
+                          <span style={{ textTransform: 'capitalize' }}>{cat}:</span>
+                          <span style={{ color: '#cbd5e1', fontWeight: '600' }}>{count}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Scrollable Files Container */}
+                  <div
+                    style={{
+                      maxHeight: '160px',
+                      overflowY: 'auto',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                      background: 'rgba(0, 0, 0, 0.28)',
+                      border: '1px solid rgba(255, 255, 255, 0.07)',
+                      borderRadius: '10px',
+                      padding: '5px',
+                    }}
+                  >
+                    {(isLoadingFiles || isFetchingInternalFiles) && activeFilesList.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '16px 8px', color: '#94a3b8', fontSize: '11px' }}>
+                        Scanning files…
+                      </div>
+                    ) : filteredActiveFiles.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '16px 8px', color: '#94a3b8', fontSize: '11px' }}>
+                        {workspaceFileFilter ? 'No matching files found.' : 'No files in this directory.'}
+                      </div>
+                    ) : (
+                      filteredActiveFiles.slice(0, visibleFileLimit).map((file, idx) => (
+                        <div
+                          key={`${file.relative_path || file.name}-${idx}`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '4px 6px',
+                            borderRadius: '6px',
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            border: '1px solid rgba(255, 255, 255, 0.04)',
+                            fontSize: '11px',
+                            gap: '8px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+                            {getFileIcon(file.category, file.name)}
+                            <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span style={{ color: '#f1f5f9', fontWeight: '500' }}>{file.name}</span>
+                              {file.relative_path && file.relative_path !== file.name && (
+                                <span style={{ color: '#64748b', fontSize: '9px', marginLeft: '4px' }}>
+                                  {file.relative_path.slice(0, file.relative_path.lastIndexOf('/') + 1)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                            {file.category && (
+                              <span
+                                style={{
+                                  fontSize: '9px',
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  background: 'rgba(255, 255, 255, 0.07)',
+                                  color: '#94a3b8',
+                                  fontWeight: '500',
+                                }}
+                              >
+                                {file.category}
+                              </span>
+                            )}
+                            <span style={{ color: '#64748b', fontSize: '10px' }}>
+                              {fmtBytes(file.size_bytes || 0)}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
-                ) : filteredActiveFiles.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '16px 8px', color: '#94a3b8', fontSize: '11px' }}>
-                    {workspaceFileFilter ? 'No matching files found.' : 'No files in this directory.'}
-                  </div>
-                ) : (
-                  filteredActiveFiles.map((file, idx) => (
+
+                  {/* Pagination Controls Footer */}
+                  {filteredActiveFiles.length > 0 && (
                     <div
-                      key={`${file.relative_path || file.name}-${idx}`}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        padding: '4px 6px',
-                        borderRadius: '6px',
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        border: '1px solid rgba(255, 255, 255, 0.04)',
-                        fontSize: '11px',
-                        gap: '8px',
+                        padding: '0 4px',
+                        fontSize: '10px',
+                        color: '#94a3b8',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
-                        {getFileIcon(file.category, file.name)}
-                        <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <span style={{ color: '#f1f5f9', fontWeight: '500' }}>{file.name}</span>
-                          {file.relative_path && file.relative_path !== file.name && (
-                            <span style={{ color: '#64748b', fontSize: '9px', marginLeft: '4px' }}>
-                              {file.relative_path.slice(0, file.relative_path.lastIndexOf('/') + 1)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                        {file.category && (
-                          <span
+                      <span>
+                        Showing {Math.min(visibleFileLimit, filteredActiveFiles.length)} of {filteredActiveFiles.length} files
+                      </span>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {filteredActiveFiles.length > visibleFileLimit && (
+                          <button
+                            type="button"
+                            onClick={() => setVisibleFileLimit((prev) => Math.min(prev + 12, filteredActiveFiles.length))}
                             style={{
-                              fontSize: '9px',
-                              padding: '1px 5px',
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              border: '1px solid rgba(255, 255, 255, 0.12)',
                               borderRadius: '4px',
-                              background: 'rgba(255, 255, 255, 0.07)',
-                              color: '#94a3b8',
-                              fontWeight: '500',
+                              color: '#38bdf8',
+                              fontSize: '10px',
+                              padding: '2px 6px',
+                              cursor: 'pointer',
                             }}
                           >
-                            {file.category}
-                          </span>
+                            + Show {Math.min(12, filteredActiveFiles.length - visibleFileLimit)} more
+                          </button>
                         )}
-                        <span style={{ color: '#64748b', fontSize: '10px' }}>
-                          {fmtBytes(file.size_bytes || 0)}
-                        </span>
+                        {visibleFileLimit > 8 && (
+                          <button
+                            type="button"
+                            onClick={() => setVisibleFileLimit(8)}
+                            style={{
+                              background: 'rgba(255, 255, 255, 0.05)',
+                              border: '1px solid rgba(255, 255, 255, 0.08)',
+                              borderRadius: '4px',
+                              color: '#94a3b8',
+                              fontSize: '10px',
+                              padding: '2px 6px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Fewer
+                          </button>
+                        )}
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         )}

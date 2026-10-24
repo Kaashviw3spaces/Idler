@@ -107,7 +107,7 @@ def list_workspaces(db: Session = Depends(get_db)):
                 "total_size_bytes": scan.total_size_bytes,
                 "subdirectories": subdirs_info,
                 "folder_counts": scan.folder_counts,
-                "preview": [f.model_dump() for f in scan.files[:50]],
+                "preview": [f.model_dump() for f in scan.files[:12]],
                 "is_removable": ws_str in db_workspaces,
             })
 
