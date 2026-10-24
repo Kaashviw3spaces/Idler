@@ -110,6 +110,36 @@ function fmtBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+function getCategoryColor(category: string): string {
+  const c = (category || '').toLowerCase();
+  switch (c) {
+    case 'images':
+    case 'image':
+      return '#f472b6';
+    case 'code':
+      return '#38bdf8';
+    case 'documents':
+    case 'document':
+      return '#60a5fa';
+    case 'spreadsheets':
+    case 'spreadsheet':
+      return '#4ade80';
+    case 'archives':
+    case 'archive':
+      return '#fb923c';
+    case 'audio':
+    case 'video':
+      return '#c084fc';
+    default:
+      return '#94a3b8';
+  }
+}
+
+function isDocOrReadme(name: string): boolean {
+  const lower = (name || '').toLowerCase();
+  return lower.endsWith('.md') || lower === 'readme' || lower.startsWith('readme.');
+}
+
 const QUICK_PROMPTS = [
   { label: '📄 Organize PDFs', prompt: 'Organize all PDF documents into the Documents folder' },
   { label: '📊 Sort Spreadsheets', prompt: 'Move all Excel spreadsheets and CSV files into Spreadsheets' },
@@ -814,248 +844,261 @@ export default function App() {
   }
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 20px' }}>
-      {/* Header */}
-      <header style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingBottom: '20px',
-        borderBottom: '1px solid #1e293b',
-        marginBottom: '24px'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{
-            fontSize: '32px',
-            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-            width: '52px',
-            height: '52px',
-            borderRadius: '14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
-          }}>
-            🦥
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '26px', fontWeight: '700', letterSpacing: '-0.5px' }}>Idler</h1>
-              <span style={{
-                background: '#1e293b',
-                color: '#94a3b8',
-                fontSize: '12px',
-                padding: '2px 8px',
-                borderRadius: '6px',
-                fontWeight: '600'
-              }}>Local AI Assistant</span>
-              <button
-                onClick={() => setViewMode('cozy')}
-                style={{
-                  marginLeft: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
-                  color: '#38bdf8',
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                }}
-              >
-                <span>🦥</span> Cozy Popover Mode
-              </button>
-            </div>
-            <p style={{ color: '#94a3b8', fontSize: '14px' }}>
-              Stop doing repetitive work. Let your local AI scan, organize, and reverse actions safely.
-            </p>
-          </div>
-        </div>
-
-        {/* System Badges & Refresh */}
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button
-            onClick={refreshAll}
-            title="Refresh system status"
-            style={{
-              background: '#1e293b',
-              border: '1px solid #334155',
-              color: '#94a3b8',
-              padding: '6px 10px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              fontSize: '12px'
-            }}
-          >
-            <RefreshCw size={14} />
-            <span>Sync</span>
-          </button>
-
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '6px 12px',
-            background: '#0f172a',
-            border: '1px solid #1e293b',
-            borderRadius: '8px',
-            fontSize: '13px',
-            color: '#38bdf8'
-          }}>
-            <Shield size={14} />
-            <span>Sandbox: <strong>Protected</strong></span>
-          </div>
-
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '6px 12px',
-            background: '#0f172a',
-            border: '1px solid #1e293b',
-            borderRadius: '8px',
-            fontSize: '13px',
-            color: isBackendOffline ? '#f87171' : '#a7f3d0'
-          }}>
-            <Database size={14} />
-            <span>
-              {isBackendOffline ? 'Backend Offline' : (health?.ollama_model ? `AI: ${health.ollama_model}` : 'AI Ready')}
-            </span>
-          </div>
-
-          {/* Native Audio Chime Menu */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowSoundMenu(!showSoundMenu)}
-              title="Native completion chime settings (macOS & Windows)"
+    <div style={{
+      minHeight: '100vh',
+      background: 'radial-gradient(ellipse at 50% 0%, #0d1527 0%, #060913 55%, #03050a 100%)',
+      color: '#f8fafc',
+      padding: '24px 20px 48px',
+    }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        {/* Header */}
+        <header style={{
+          paddingBottom: '20px',
+          borderBottom: '1px solid #141c2e',
+          marginBottom: '24px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <img
+              src="/sloth.png"
+              alt="Idler"
+              className="sloth-mascot-glow"
               style={{
+                width: '52px',
+                height: '52px',
+                objectFit: 'contain',
+                flexShrink: 0,
+              }}
+            />
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <h1 style={{ fontSize: '26px', fontWeight: '700', letterSpacing: '-0.5px', color: '#ffffff' }}>Idler</h1>
+                <span style={{
+                  background: '#0e1628',
+                  border: '1px solid #1a2740',
+                  color: '#94a3b8',
+                  fontSize: '12px',
+                  padding: '3px 9px',
+                  borderRadius: '6px',
+                  fontWeight: '600'
+                }}>Local AI Assistant</span>
+                <button
+                  onClick={() => setViewMode('cozy')}
+                  className="studio-pill-btn"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: '#0e1628',
+                    border: '1px solid #1a2740',
+                    color: '#38bdf8',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span>🦥</span> Cozy Popover Mode
+                </button>
+              </div>
+              <p style={{ color: '#8fa0b8', fontSize: '14px', marginTop: '4px' }}>
+                Stop doing repetitive work. Let your local AI scan, organize, and reverse actions safely.
+              </p>
+            </div>
+          </div>
+
+          {/* System Badges & Refresh */}
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '16px', flexWrap: 'wrap' }}>
+            <button
+              onClick={refreshAll}
+              title="Refresh system status"
+              className="studio-pill-btn"
+              style={{
+                background: '#0c1322',
+                border: '1px solid #1b263e',
+                color: '#94a3b8',
+                padding: '6px 12px',
+                borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '6px 12px',
-                background: '#0f172a',
-                border: '1px solid #1e293b',
-                borderRadius: '8px',
-                fontSize: '13px',
-                color: soundMuted ? '#94a3b8' : '#38bdf8',
+                fontSize: '12px',
+                fontWeight: '500',
                 cursor: 'pointer'
               }}
             >
-              {soundMuted ? <VolumeX size={14} color="#94a3b8" /> : <Volume2 size={14} color="#38bdf8" />}
-              <span>Chime: <strong>{soundMuted ? 'Muted' : soundMode === 'auto' ? 'Auto (OS)' : soundMode.toUpperCase()}</strong></span>
+              <RefreshCw size={13} />
+              <span>Sync</span>
             </button>
 
-            {showSoundMenu && (
-              <div style={{
-                position: 'absolute',
-                top: 'calc(100% + 8px)',
-                right: 0,
-                width: '260px',
-                background: '#0f172a',
-                border: '1px solid #334155',
-                borderRadius: '10px',
-                padding: '14px',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-                zIndex: 100,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#f8fafc' }}>
-                    Completion Chimes
-                  </span>
-                  <button
-                    onClick={toggleSoundMute}
-                    style={{
-                      background: soundMuted ? '#374151' : '#047857',
-                      color: '#ffffff',
-                      border: 'none',
-                      padding: '3px 8px',
-                      borderRadius: '5px',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {soundMuted ? 'Unmute' : 'Mute'}
-                  </button>
-                </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              background: '#091122',
+              border: '1px solid #0284c7',
+              borderRadius: '8px',
+              fontSize: '12px',
+              color: '#38bdf8',
+              fontWeight: '500',
+              boxShadow: '0 0 10px rgba(14, 165, 233, 0.2)',
+            }}>
+              <Shield size={13} color="#38bdf8" />
+              <span>Sandbox: <strong style={{ color: '#38bdf8' }}>Protected</strong></span>
+              <span className="status-dot-green" />
+            </div>
 
-                <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                  Plays an audio chime when background scheduled tasks and workflows finish.
-                </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              background: '#091122',
+              border: `1px solid ${isBackendOffline ? '#ef4444' : '#059669'}`,
+              borderRadius: '8px',
+              fontSize: '12px',
+              color: isBackendOffline ? '#f87171' : '#34d399',
+              fontWeight: '500',
+              boxShadow: isBackendOffline ? '0 0 10px rgba(239, 68, 68, 0.2)' : '0 0 10px rgba(16, 185, 129, 0.15)',
+            }}>
+              <Database size={13} />
+              <span>
+                {isBackendOffline ? 'Backend Offline' : (health?.ollama_model ? `AI: ${health.ollama_model}` : 'AI Ready')}
+              </span>
+            </div>
 
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  {(['auto', 'mac', 'win'] as SoundPlatform[]).map((mode) => (
+            {/* Native Audio Chime Menu */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setShowSoundMenu(!showSoundMenu)}
+                title="Native completion chime settings (macOS & Windows)"
+                className="studio-pill-btn"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  background: '#0c1322',
+                  border: '1px solid #1b263e',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  color: soundMuted ? '#94a3b8' : '#38bdf8',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                {soundMuted ? <VolumeX size={13} color="#94a3b8" /> : <Volume2 size={13} color="#38bdf8" />}
+                <span>Chime: <strong>{soundMuted ? 'Muted' : soundMode === 'auto' ? 'MAC' : soundMode.toUpperCase()}</strong></span>
+                <ChevronDown size={12} color="#94a3b8" />
+              </button>
+
+              {showSoundMenu && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  left: 0,
+                  width: '260px',
+                  background: '#080d1a',
+                  border: '1px solid #1e293b',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  boxShadow: '0 14px 35px rgba(0, 0, 0, 0.6)',
+                  zIndex: 100,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', fontWeight: '600', color: '#f8fafc' }}>
+                      Completion Chimes
+                    </span>
                     <button
-                      key={mode}
-                      onClick={() => handleChangeSoundMode(mode)}
+                      onClick={toggleSoundMute}
                       style={{
-                        flex: 1,
-                        padding: '5px 0',
+                        background: soundMuted ? '#374151' : '#047857',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '3px 8px',
+                        borderRadius: '5px',
                         fontSize: '11px',
                         fontWeight: '600',
-                        background: soundMode === mode ? '#2563eb' : '#1e293b',
-                        color: soundMode === mode ? '#ffffff' : '#cbd5e1',
-                        border: '1px solid #334155',
-                        borderRadius: '6px',
                         cursor: 'pointer'
                       }}
                     >
-                      {mode === 'auto' ? 'Auto' : mode === 'mac' ? '🍎 Mac' : '🪟 Win'}
+                      {soundMuted ? 'Unmute' : 'Mute'}
                     </button>
-                  ))}
-                </div>
+                  </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '6px', borderTop: '1px solid #1e293b' }}>
-                  <button
-                    onClick={() => playMacChime()}
-                    style={{
-                      padding: '6px',
-                      background: '#1e293b',
-                      color: '#93c5fd',
-                      border: '1px solid #334155',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <span>🍎</span> Test macOS Glass Chime
-                  </button>
-                  <button
-                    onClick={() => playWindowsChime()}
-                    style={{
-                      padding: '6px',
-                      background: '#1e293b',
-                      color: '#93c5fd',
-                      border: '1px solid #334155',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <span>🪟</span> Test Windows Notify Chime
-                  </button>
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                    Plays an audio chime when background scheduled tasks and workflows finish.
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {(['auto', 'mac', 'win'] as SoundPlatform[]).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => handleChangeSoundMode(mode)}
+                        style={{
+                          flex: 1,
+                          padding: '5px 0',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          background: soundMode === mode ? '#2563eb' : '#1e293b',
+                          color: soundMode === mode ? '#ffffff' : '#cbd5e1',
+                          border: '1px solid #334155',
+                          borderRadius: '6px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {mode === 'auto' ? 'Auto' : mode === 'mac' ? '🍎 Mac' : '🪟 Win'}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '6px', borderTop: '1px solid #1e293b' }}>
+                    <button
+                      onClick={() => playMacChime()}
+                      style={{
+                        padding: '6px',
+                        background: '#1e293b',
+                        color: '#93c5fd',
+                        border: '1px solid #334155',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span>🍎</span> Test macOS Glass Chime
+                    </button>
+                    <button
+                      onClick={() => playWindowsChime()}
+                      style={{
+                        padding: '6px',
+                        background: '#1e293b',
+                        color: '#93c5fd',
+                        border: '1px solid #334155',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span>🪟</span> Test Windows Notify Chime
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
       {/* Backend Offline Warning Banner */}
       {isBackendOffline && (
@@ -1118,23 +1161,26 @@ export default function App() {
       <nav style={{
         display: 'flex',
         gap: '8px',
-        borderBottom: '1px solid #1e293b',
+        borderBottom: '1px solid #141c2e',
         paddingBottom: '12px',
-        marginBottom: '24px'
+        marginBottom: '24px',
+        overflowX: 'auto',
       }}>
         <button
           onClick={() => setTab('planner')}
+          className={`studio-tab-btn ${tab === 'planner' ? 'studio-tab-active' : ''}`}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             padding: '8px 16px',
             borderRadius: '8px',
-            border: 'none',
+            border: tab === 'planner' ? '1px solid #38bdf8' : '1px solid transparent',
             fontSize: '14px',
             fontWeight: '600',
-            background: tab === 'planner' ? '#2563eb' : 'transparent',
-            color: tab === 'planner' ? '#ffffff' : '#94a3b8'
+            background: tab === 'planner' ? 'rgba(14, 165, 233, 0.16)' : 'transparent',
+            color: tab === 'planner' ? '#38bdf8' : '#94a3b8',
+            cursor: 'pointer',
           }}
         >
           <Sparkles size={16} />
@@ -1143,17 +1189,19 @@ export default function App() {
 
         <button
           onClick={() => { setTab('ledger'); loadActions(); }}
+          className={`studio-tab-btn ${tab === 'ledger' ? 'studio-tab-active' : ''}`}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             padding: '8px 16px',
             borderRadius: '8px',
-            border: 'none',
+            border: tab === 'ledger' ? '1px solid #38bdf8' : '1px solid transparent',
             fontSize: '14px',
             fontWeight: '600',
-            background: tab === 'ledger' ? '#2563eb' : 'transparent',
-            color: tab === 'ledger' ? '#ffffff' : '#94a3b8'
+            background: tab === 'ledger' ? 'rgba(14, 165, 233, 0.16)' : 'transparent',
+            color: tab === 'ledger' ? '#38bdf8' : '#94a3b8',
+            cursor: 'pointer',
           }}
         >
           <History size={16} />
@@ -1162,17 +1210,19 @@ export default function App() {
 
         <button
           onClick={() => setTab('duplicates')}
+          className={`studio-tab-btn ${tab === 'duplicates' ? 'studio-tab-active' : ''}`}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             padding: '8px 16px',
             borderRadius: '8px',
-            border: 'none',
+            border: tab === 'duplicates' ? '1px solid #38bdf8' : '1px solid transparent',
             fontSize: '14px',
             fontWeight: '600',
-            background: tab === 'duplicates' ? '#2563eb' : 'transparent',
-            color: tab === 'duplicates' ? '#ffffff' : '#94a3b8'
+            background: tab === 'duplicates' ? 'rgba(14, 165, 233, 0.16)' : 'transparent',
+            color: tab === 'duplicates' ? '#38bdf8' : '#94a3b8',
+            cursor: 'pointer',
           }}
         >
           <Search size={16} />
@@ -1181,17 +1231,19 @@ export default function App() {
 
         <button
           onClick={() => setTab('projects')}
+          className={`studio-tab-btn ${tab === 'projects' ? 'studio-tab-active' : ''}`}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             padding: '8px 16px',
             borderRadius: '8px',
-            border: 'none',
+            border: tab === 'projects' ? '1px solid #38bdf8' : '1px solid transparent',
             fontSize: '14px',
             fontWeight: '600',
-            background: tab === 'projects' ? '#2563eb' : 'transparent',
-            color: tab === 'projects' ? '#ffffff' : '#94a3b8'
+            background: tab === 'projects' ? 'rgba(14, 165, 233, 0.16)' : 'transparent',
+            color: tab === 'projects' ? '#38bdf8' : '#94a3b8',
+            cursor: 'pointer',
           }}
         >
           <Code2 size={16} />
@@ -1200,17 +1252,19 @@ export default function App() {
 
         <button
           onClick={() => { setTab('workflows'); loadWorkflows(); }}
+          className={`studio-tab-btn ${tab === 'workflows' ? 'studio-tab-active' : ''}`}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             padding: '8px 16px',
             borderRadius: '8px',
-            border: 'none',
+            border: tab === 'workflows' ? '1px solid #38bdf8' : '1px solid transparent',
             fontSize: '14px',
             fontWeight: '600',
-            background: tab === 'workflows' ? '#2563eb' : 'transparent',
-            color: tab === 'workflows' ? '#ffffff' : '#94a3b8'
+            background: tab === 'workflows' ? 'rgba(14, 165, 233, 0.16)' : 'transparent',
+            color: tab === 'workflows' ? '#38bdf8' : '#94a3b8',
+            cursor: 'pointer',
           }}
         >
           <FolderSync size={16} />
@@ -1219,17 +1273,19 @@ export default function App() {
 
         <button
           onClick={() => { setTab('workspaces'); loadWorkspaces(); }}
+          className={`studio-tab-btn ${tab === 'workspaces' ? 'studio-tab-active' : ''}`}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             padding: '8px 16px',
             borderRadius: '8px',
-            border: 'none',
+            border: tab === 'workspaces' ? '1px solid #38bdf8' : '1px solid transparent',
             fontSize: '14px',
             fontWeight: '600',
-            background: tab === 'workspaces' ? '#2563eb' : 'transparent',
-            color: tab === 'workspaces' ? '#ffffff' : '#94a3b8'
+            background: tab === 'workspaces' ? 'rgba(14, 165, 233, 0.16)' : 'transparent',
+            color: tab === 'workspaces' ? '#38bdf8' : '#94a3b8',
+            cursor: 'pointer',
           }}
         >
           <FolderOpen size={16} />
@@ -1242,37 +1298,40 @@ export default function App() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
           {/* Workspace Target & Live Files Bar */}
           <div style={{
-            background: '#0f172a',
-            border: '1px solid #1e293b',
-            borderRadius: '14px',
-            padding: '20px'
+            background: '#080d1a',
+            border: '1px solid #162035',
+            borderRadius: '16px',
+            padding: '22px',
+            boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)',
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FolderOpen size={18} color="#38bdf8" />
-                <span style={{ fontSize: '15px', fontWeight: '600' }}>Active Folder to Scan on Computer:</span>
+                <span style={{ fontSize: '15px', fontWeight: '600', color: '#f1f5f9' }}>Active Folder to Scan on Computer:</span>
               </div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <select
                   value={selectedWorkspace}
                   onChange={(e) => setSelectedWorkspace(e.target.value)}
                   style={{
-                    background: '#1e293b',
+                    background: '#0c1322',
                     color: '#ffffff',
-                    border: '1px solid #334155',
-                    padding: '8px 12px',
+                    border: '1px solid #1b263e',
+                    padding: '8px 14px',
                     borderRadius: '8px',
-                    fontSize: '14px',
-                    minWidth: '280px'
+                    fontSize: '13px',
+                    minWidth: '260px',
+                    outline: 'none',
+                    cursor: 'pointer',
                   }}
                 >
                   {workspaces.map((ws, idx) => (
                     <React.Fragment key={idx}>
-                      <option value={ws.path} style={{ fontWeight: '600' }}>
+                      <option value={ws.path} style={{ fontWeight: '600', background: '#0c1322' }}>
                         📂 {ws.name} ({ws.files_count} files)
                       </option>
                       {ws.subdirectories?.map((sub, sIdx) => (
-                        <option key={`${idx}-${sIdx}`} value={sub.path} style={{ color: '#38bdf8' }}>
+                        <option key={`${idx}-${sIdx}`} value={sub.path} style={{ color: '#38bdf8', background: '#0c1322' }}>
                           &nbsp;&nbsp;&nbsp;&nbsp;↳ 📁 {sub.name} ({sub.files_count} files)
                         </option>
                       ))}
@@ -1283,16 +1342,18 @@ export default function App() {
                   type="button"
                   onClick={() => loadLiveFiles(selectedWorkspace)}
                   disabled={isLoadingFiles}
+                  className="studio-pill-btn"
                   style={{
                     padding: '8px 14px',
-                    background: '#1e293b',
+                    background: '#0c1322',
                     color: '#cbd5e1',
-                    border: '1px solid #334155',
+                    border: '1px solid #1b263e',
                     borderRadius: '8px',
                     fontSize: '13px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px'
+                    gap: '6px',
+                    cursor: 'pointer',
                   }}
                 >
                   <RefreshCw size={13} className={isLoadingFiles ? 'spin' : ''} />
@@ -1306,13 +1367,13 @@ export default function App() {
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '8px',
                 flexWrap: 'wrap',
-                marginBottom: '12px',
-                padding: '8px 12px',
-                background: '#1e293b',
-                borderRadius: '8px',
-                border: '1px solid #334155'
+                marginBottom: '16px',
+                padding: '10px 14px',
+                background: '#080e1c',
+                borderRadius: '10px',
+                border: '1px solid #162035'
               }}>
                 <span style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', marginRight: '4px' }}>
                   Subfolders:
@@ -1320,15 +1381,16 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setSelectedSubdirFilter('all')}
+                  className={selectedSubdirFilter === 'all' ? 'studio-subfolder-active' : 'studio-subfolder-pill'}
                   style={{
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    border: 'none',
+                    padding: '4px 11px',
+                    borderRadius: '7px',
+                    fontSize: '12px',
+                    fontWeight: selectedSubdirFilter === 'all' ? '700' : '600',
+                    border: selectedSubdirFilter === 'all' ? '1px solid #38bdf8' : '1px solid #1b263e',
                     cursor: 'pointer',
-                    background: selectedSubdirFilter === 'all' ? '#2563eb' : '#0f172a',
-                    color: selectedSubdirFilter === 'all' ? '#ffffff' : '#94a3b8'
+                    background: selectedSubdirFilter === 'all' ? '#0077ff' : '#0c1322',
+                    color: selectedSubdirFilter === 'all' ? '#ffffff' : '#cbd5e1'
                   }}
                 >
                   All ({liveFiles.length})
@@ -1341,22 +1403,23 @@ export default function App() {
                       key={subdir}
                       type="button"
                       onClick={() => setSelectedSubdirFilter(isSelected ? 'all' : subdir)}
+                      className={isSelected ? 'studio-subfolder-active' : 'studio-subfolder-pill'}
                       style={{
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        fontSize: '11px',
+                        padding: '4px 11px',
+                        borderRadius: '7px',
+                        fontSize: '12px',
                         fontWeight: '600',
-                        border: isSelected ? '1px solid #38bdf8' : '1px solid #334155',
+                        border: isSelected ? '1px solid #38bdf8' : '1px solid #1b263e',
                         cursor: 'pointer',
-                        background: isSelected ? '#1e3a8a' : '#0f172a',
-                        color: isSelected ? '#93c5fd' : '#cbd5e1',
+                        background: isSelected ? '#0077ff' : '#0c1322',
+                        color: isSelected ? '#ffffff' : '#cbd5e1',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '4px'
+                        gap: '5px'
                       }}
                     >
                       <span>📁 {subdir}</span>
-                      <span style={{ color: isSelected ? '#ffffff' : '#64748b', fontSize: '10px' }}>({count})</span>
+                      <span style={{ color: isSelected ? '#ffffff' : '#64748b', fontSize: '11px' }}>({count})</span>
                     </button>
                   );
                 })}
@@ -1364,15 +1427,16 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setSelectedSubdirFilter(selectedSubdirFilter === '(root)' ? 'all' : '(root)')}
+                    className={selectedSubdirFilter === '(root)' ? 'studio-subfolder-active' : 'studio-subfolder-pill'}
                     style={{
-                      padding: '3px 8px',
-                      borderRadius: '6px',
-                      fontSize: '11px',
+                      padding: '4px 11px',
+                      borderRadius: '7px',
+                      fontSize: '12px',
                       fontWeight: '600',
-                      border: selectedSubdirFilter === '(root)' ? '1px solid #38bdf8' : '1px solid #334155',
+                      border: selectedSubdirFilter === '(root)' ? '1px solid #38bdf8' : '1px solid #1b263e',
                       cursor: 'pointer',
-                      background: selectedSubdirFilter === '(root)' ? '#1e3a8a' : '#0f172a',
-                      color: selectedSubdirFilter === '(root)' ? '#93c5fd' : '#94a3b8'
+                      background: selectedSubdirFilter === '(root)' ? '#0077ff' : '#0c1322',
+                      color: selectedSubdirFilter === '(root)' ? '#ffffff' : '#94a3b8'
                     }}
                   >
                     (root) ({workspaceFolderCounts['(root)']})
@@ -1383,41 +1447,30 @@ export default function App() {
 
             {/* Live files preview list */}
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                <button
-                  type="button"
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                <div
                   onClick={() => setShowLiveFilesPreview(!showLiveFilesPreview)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#cbd5e1',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    padding: '2px 0'
-                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}
                 >
-                  {showLiveFilesPreview ? <ChevronDown size={15} color="#38bdf8" /> : <ChevronRight size={15} color="#38bdf8" />}
-                  <span>Files in Workspace</span>
-                  <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '400' }}>
-                    ({filteredLiveFiles.length} file{filteredLiveFiles.length === 1 ? '' : 's'}{selectedSubdirFilter !== 'all' ? ` in ${selectedSubdirFilter}` : ''})
+                  {showLiveFilesPreview ? <ChevronDown size={14} color="#38bdf8" /> : <ChevronRight size={14} color="#38bdf8" />}
+                  <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500' }}>
+                    {filteredLiveFiles.length} of {liveFiles.length} file(s) in {selectedSubdirFilter === 'all' ? 'all subfolders' : selectedSubdirFilter}:
                   </span>
-                </button>
+                </div>
 
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <button
                     type="button"
                     onClick={() => setGroupBySubfolder(!groupBySubfolder)}
+                    className="studio-pill-btn"
                     style={{
-                      background: '#1e293b',
-                      border: '1px solid #334155',
+                      background: '#0c1322',
+                      border: '1px solid #1b263e',
                       color: '#cbd5e1',
-                      borderRadius: '6px',
-                      padding: '3px 8px',
-                      fontSize: '11px',
+                      borderRadius: '7px',
+                      padding: '5px 12px',
+                      fontSize: '12px',
+                      fontWeight: '500',
                       cursor: 'pointer'
                     }}
                   >
@@ -1429,200 +1482,214 @@ export default function App() {
                     value={fileFilter}
                     onChange={(e) => setFileFilter(e.target.value)}
                     style={{
-                      background: '#1e293b',
+                      background: '#060a14',
                       color: '#e2e8f0',
-                      border: '1px solid #334155',
-                      borderRadius: '6px',
-                      padding: '3px 8px',
+                      border: '1px solid #162035',
+                      borderRadius: '7px',
+                      padding: '5px 12px',
                       fontSize: '12px',
-                      width: '200px'
+                      width: '220px',
+                      outline: 'none',
                     }}
                   />
                 </div>
               </div>
 
+              {/* Category Summary Chips */}
+              {showLiveFilesPreview && Object.keys(liveCategoryCounts).length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+                  {Object.entries(liveCategoryCounts).map(([cat, count]) => (
+                    <span
+                      key={cat}
+                      style={{
+                        fontSize: '11px',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        color: '#cbd5e1',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <span style={{ textTransform: 'capitalize', fontWeight: '500' }}>{cat}:</span>
+                      <span style={{ color: getCategoryColor(cat), fontWeight: '600' }}>{count}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+
               {showLiveFilesPreview && (
-                <>
-                  {/* Category Summary Chips */}
-                  {Object.keys(liveCategoryCounts).length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
-                      {Object.entries(liveCategoryCounts).map(([cat, count]) => (
-                        <span
-                          key={cat}
-                          style={{
+                filteredLiveFiles.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontSize: '13px' }}>
+                  {liveFiles.length === 0 ? 'No files found in this workspace.' : 'No files match the filter.'}
+                </div>
+              ) : groupBySubfolder ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {Object.entries(groupedLiveFiles).map(([folderName, filesInFolder]) => (
+                    <div key={folderName} className="studio-group-card" style={{
+                      background: '#070b16',
+                      borderRadius: '12px',
+                      padding: '14px 18px',
+                      border: '1px solid #151e33'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#38bdf8' }}>
+                          {folderName}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>({filesInFolder.length} files)</span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {filesInFolder.slice(0, 48).map((f, i) => {
+                          const isGold = isDocOrReadme(f.name);
+                          const catColor = getCategoryColor(f.category);
+                          return (
+                            <span key={i} className="studio-file-badge" style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              background: '#0c1322',
+                              border: '1px solid #1b263e',
+                              padding: '5px 10px',
+                              borderRadius: '7px',
+                              fontSize: '12px',
+                              fontFamily: "'JetBrains Mono', 'Fira Code', monospace"
+                            }}>
+                              <span style={{ color: isGold ? '#fbbf24' : '#e2e8f0', fontWeight: isGold ? '600' : '400' }}>
+                                {f.name}
+                              </span>
+                              <span style={{ color: isGold ? '#fbbf24' : catColor, fontSize: '11px' }}>
+                                ({f.category})
+                              </span>
+                            </span>
+                          );
+                        })}
+                        {filesInFolder.length > 48 && (
+                          <span style={{
                             fontSize: '11px',
-                            padding: '2px 8px',
-                            borderRadius: '12px',
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            border: '1px solid rgba(255, 255, 255, 0.08)',
-                            color: '#cbd5e1',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px'
+                            color: '#94a3b8',
+                            padding: '4px 8px',
+                            fontStyle: 'italic',
+                            background: 'rgba(255, 255, 255, 0.04)',
+                            borderRadius: '6px'
+                          }}>
+                            +{filesInFolder.length - 48} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
+                    {filteredLiveFiles.slice(0, liveFileLimit).map((f, i) => {
+                      const isGold = isDocOrReadme(f.name);
+                      const catColor = getCategoryColor(f.category);
+                      return (
+                        <span key={i} className="studio-file-badge" style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: '#0c1322',
+                          border: '1px solid #1b263e',
+                          padding: '5px 10px',
+                          borderRadius: '7px',
+                          fontSize: '12px',
+                          fontFamily: "'JetBrains Mono', 'Fira Code', monospace"
+                        }}>
+                          <span style={{ color: isGold ? '#fbbf24' : '#e2e8f0', fontWeight: isGold ? '600' : '400' }}>
+                            {f.relative_path || f.name}
+                          </span>
+                          <span style={{ color: isGold ? '#fbbf24' : catColor, fontSize: '11px' }}>
+                            ({f.category})
+                          </span>
+                        </span>
+                      );
+                    })}
+                  </div>
+
+                  {/* Pagination Controls */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', fontSize: '11px', color: '#94a3b8' }}>
+                    <span>
+                      Showing {Math.min(liveFileLimit, filteredLiveFiles.length)} of {filteredLiveFiles.length} files
+                    </span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {filteredLiveFiles.length > liveFileLimit && (
+                        <button
+                          type="button"
+                          onClick={() => setLiveFileLimit((prev) => Math.min(prev + 24, filteredLiveFiles.length))}
+                          className="studio-pill-btn"
+                          style={{
+                            background: '#0c1322',
+                            border: '1px solid #1b263e',
+                            color: '#38bdf8',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
+                            fontSize: '11px',
+                            cursor: 'pointer'
                           }}
                         >
-                          <span style={{ textTransform: 'capitalize', fontWeight: '500' }}>{cat}:</span>
-                          <span style={{ color: '#38bdf8', fontWeight: '600' }}>{count}</span>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {filteredLiveFiles.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '13px' }}>
-                      {liveFiles.length === 0 ? 'No files found in this workspace.' : 'No files match the filter.'}
-                    </div>
-                  ) : groupBySubfolder ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '200px', overflowY: 'auto', paddingRight: '4px' }}>
-                      {Object.entries(groupedLiveFiles).map(([folderName, filesInFolder]) => (
-                        <div key={folderName} style={{
-                          background: '#1e293b',
-                          borderRadius: '8px',
-                          padding: '8px 12px',
-                          border: '1px solid #334155'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: '700', color: '#38bdf8' }}>
-                              📁 {folderName}
-                            </span>
-                            <span style={{ fontSize: '11px', color: '#94a3b8' }}>({filesInFolder.length} file{filesInFolder.length > 1 ? 's' : ''})</span>
-                          </div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                            {filesInFolder.slice(0, 8).map((f, i) => (
-                              <span key={i} style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                background: '#0f172a',
-                                color: '#e2e8f0',
-                                border: '1px solid #334155',
-                                padding: '3px 7px',
-                                borderRadius: '5px',
-                                fontSize: '11px',
-                                fontFamily: 'monospace'
-                              }}>
-                                <File size={11} color="#38bdf8" />
-                                <span>{f.name}</span>
-                                <span style={{ color: '#64748b', fontSize: '10px' }}>({f.category})</span>
-                              </span>
-                            ))}
-                            {filesInFolder.length > 8 && (
-                              <span style={{
-                                fontSize: '11px',
-                                color: '#94a3b8',
-                                padding: '3px 7px',
-                                fontStyle: 'italic',
-                                background: 'rgba(255, 255, 255, 0.04)',
-                                borderRadius: '5px'
-                              }}>
-                                +{filesInFolder.length - 8} more
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '160px', overflowY: 'auto' }}>
-                        {filteredLiveFiles.slice(0, liveFileLimit).map((f, i) => (
-                          <span key={i} style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            background: '#1e293b',
-                            color: '#e2e8f0',
-                            border: '1px solid #334155',
-                            padding: '4px 8px',
+                          + Show {Math.min(24, filteredLiveFiles.length - liveFileLimit)} more ({filteredLiveFiles.length - liveFileLimit} left)
+                        </button>
+                      )}
+                      {filteredLiveFiles.length > liveFileLimit && (
+                        <button
+                          type="button"
+                          onClick={() => setLiveFileLimit(filteredLiveFiles.length)}
+                          className="studio-pill-btn"
+                          style={{
+                            background: '#0c1322',
+                            border: '1px solid #1b263e',
+                            color: '#94a3b8',
                             borderRadius: '6px',
-                            fontSize: '12px',
-                            fontFamily: 'monospace'
-                          }}>
-                            <File size={12} color="#38bdf8" />
-                            <span>{f.relative_path || f.name}</span>
-                            <span style={{ color: '#64748b', fontSize: '11px' }}>({f.category})</span>
-                          </span>
-                        ))}
-                      </div>
-
-                      {/* Pagination Controls */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', fontSize: '11px', color: '#94a3b8' }}>
-                        <span>
-                          Showing {Math.min(liveFileLimit, filteredLiveFiles.length)} of {filteredLiveFiles.length} files
-                        </span>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          {filteredLiveFiles.length > liveFileLimit && (
-                            <button
-                              type="button"
-                              onClick={() => setLiveFileLimit((prev) => Math.min(prev + 24, filteredLiveFiles.length))}
-                              style={{
-                                background: '#1e293b',
-                                border: '1px solid #334155',
-                                color: '#38bdf8',
-                                borderRadius: '5px',
-                                padding: '3px 8px',
-                                fontSize: '11px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              + Show {Math.min(24, filteredLiveFiles.length - liveFileLimit)} more ({filteredLiveFiles.length - liveFileLimit} left)
-                            </button>
-                          )}
-                          {filteredLiveFiles.length > liveFileLimit && (
-                            <button
-                              type="button"
-                              onClick={() => setLiveFileLimit(filteredLiveFiles.length)}
-                              style={{
-                                background: '#1e293b',
-                                border: '1px solid #334155',
-                                color: '#94a3b8',
-                                borderRadius: '5px',
-                                padding: '3px 8px',
-                                fontSize: '11px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Show all
-                            </button>
-                          )}
-                          {liveFileLimit > 16 && (
-                            <button
-                              type="button"
-                              onClick={() => setLiveFileLimit(16)}
-                              style={{
-                                background: '#1e293b',
-                                border: '1px solid #334155',
-                                color: '#94a3b8',
-                                borderRadius: '5px',
-                                padding: '3px 8px',
-                                fontSize: '11px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Show fewer
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                            padding: '3px 8px',
+                            fontSize: '11px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Show all
+                        </button>
+                      )}
+                      {liveFileLimit > 16 && (
+                        <button
+                          type="button"
+                          onClick={() => setLiveFileLimit(16)}
+                          className="studio-pill-btn"
+                          style={{
+                            background: '#0c1322',
+                            border: '1px solid #1b263e',
+                            color: '#94a3b8',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
+                            fontSize: '11px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Show fewer
+                        </button>
+                      )}
                     </div>
-                  )}
-                </>
-              )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
           {/* Prompt Input Form */}
           <div style={{
-            background: '#0f172a',
-            border: '1px solid #1e293b',
-            borderRadius: '14px',
-            padding: '24px'
+            background: '#080d1a',
+            border: '1px solid #162035',
+            borderRadius: '16px',
+            padding: '24px',
+            boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)',
           }}>
-            <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', color: '#f8fafc' }}>
               <Sparkles size={18} color="#38bdf8" />
               What would you like Idler to do with these files?
             </h2>
-            <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '16px' }}>
+            <p style={{ color: '#8fa0b8', fontSize: '14px', marginBottom: '16px' }}>
               Describe your desired organization in plain English. The agent scans your files, generates a safe plan, and asks for your approval before touching anything.
             </p>
 
@@ -1633,9 +1700,10 @@ export default function App() {
                   key={idx}
                   type="button"
                   onClick={() => setQuery(qp.prompt)}
+                  className="studio-pill-btn"
                   style={{
-                    background: '#1e293b',
-                    border: '1px solid #334155',
+                    background: '#0c1322',
+                    border: '1px solid #1b263e',
                     color: '#cbd5e1',
                     padding: '6px 12px',
                     borderRadius: '8px',
@@ -1659,31 +1727,53 @@ export default function App() {
                     flex: 1,
                     padding: '14px 18px',
                     borderRadius: '10px',
-                    background: '#1e293b',
-                    border: '1px solid #334155',
+                    background: '#060a14',
+                    border: '1px solid #162035',
                     color: '#ffffff',
                     fontSize: '15px',
-                    outline: 'none'
+                    outline: 'none',
+                    transition: 'border-color 0.2s, box-shadow 0.2s',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#38bdf8';
+                    e.currentTarget.style.boxShadow = '0 0 14px rgba(56, 189, 248, 0.25)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#162035';
+                    e.currentTarget.style.boxShadow = 'none';
                   }}
                 />
                 <button
                   type="submit"
                   disabled={isPlanning || !query.trim()}
+                  className="studio-pill-btn"
                   style={{
                     padding: '14px 24px',
-                    background: isPlanning ? '#475569' : '#2563eb',
+                    background: query.trim() ? 'linear-gradient(135deg, #0ea5e9, #2563eb)' : '#1e293b',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: '10px',
-                    fontWeight: '600',
                     fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: query.trim() ? 'pointer' : 'not-allowed',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px'
+                    gap: '8px',
+                    boxShadow: query.trim() ? '0 4px 18px rgba(14, 165, 233, 0.4)' : 'none',
                   }}
                 >
-                  {isPlanning ? 'Scanning & Planning...' : 'Generate Plan'}
-                  <ArrowRight size={18} />
+                  {isPlanning ? (
+                    <>
+                      <RefreshCw size={16} className="spin" />
+                      <span>Planning...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={16} />
+                      <span>Generate Plan</span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -1692,10 +1782,11 @@ export default function App() {
           {/* Plan Preview & Approval Gate */}
           {currentPlan && (
             <div style={{
-              background: '#0f172a',
-              border: '1px solid #334155',
-              borderRadius: '14px',
-              padding: '24px'
+              background: '#080d1a',
+              border: '1px solid #162035',
+              borderRadius: '16px',
+              padding: '24px',
+              boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
@@ -2123,7 +2214,7 @@ export default function App() {
 
       {/* TAB 2: ACTION LEDGER */}
       {tab === 'ledger' && (
-        <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
+        <div style={{ background: '#080d1a', border: '1px solid #162035', borderRadius: '16px', padding: '24px', boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h2 style={{ fontSize: '20px', fontWeight: '600' }}>Immutable Action Ledger</h2>
@@ -2264,7 +2355,7 @@ export default function App() {
 
       {/* TAB 3: DUPLICATE FINDER */}
       {tab === 'duplicates' && (
-        <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
+        <div style={{ background: '#080d1a', border: '1px solid #162035', borderRadius: '16px', padding: '24px', boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h2 style={{ fontSize: '20px', fontWeight: '600' }}>Cryptographic Duplicate Finder</h2>
@@ -2436,7 +2527,7 @@ export default function App() {
       {tab === 'workflows' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
           {/* Create Workflow Card */}
-          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
+          <div style={{ background: '#080d1a', border: '1px solid #162035', borderRadius: '16px', padding: '24px', boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)' }}>
             <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FolderSync size={18} color="#38bdf8" />
               Save New Repetitive Workflow
@@ -2517,7 +2608,7 @@ export default function App() {
           </div>
 
           {/* Saved Workflows List */}
-          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
+          <div style={{ background: '#080d1a', border: '1px solid #162035', borderRadius: '16px', padding: '24px', boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>Your Saved Workflows</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {workflows.length === 0 ? (
@@ -2630,7 +2721,7 @@ export default function App() {
       {/* TAB: PROJECT INSPECTOR */}
       {tab === 'projects' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
-          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
+          <div style={{ background: '#080d1a', border: '1px solid #162035', borderRadius: '16px', padding: '24px', boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)' }}>
             <div style={{ marginBottom: '20px' }}>
               <h2 style={{ fontSize: '20px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Code2 size={20} color="#38bdf8" />
@@ -2765,7 +2856,7 @@ export default function App() {
       {tab === 'workspaces' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
           {/* Register New Local Folder Card */}
-          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
+          <div style={{ background: '#080d1a', border: '1px solid #162035', borderRadius: '16px', padding: '24px', boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)' }}>
             <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <PlusCircle size={18} color="#38bdf8" />
               Add Local Folder on Your Computer to Idler
@@ -2836,7 +2927,7 @@ export default function App() {
           </div>
 
           {/* Allowed Workspaces List */}
-          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '24px' }}>
+          <div style={{ background: '#080d1a', border: '1px solid #162035', borderRadius: '16px', padding: '24px', boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)' }}>
             <div style={{ marginBottom: '20px' }}>
               <h2 style={{ fontSize: '20px', fontWeight: '600' }}>Allowed Workspaces & Folders</h2>
               <p style={{ color: '#94a3b8', fontSize: '14px' }}>
@@ -2977,5 +3068,6 @@ export default function App() {
       {/* Global Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
+  </div>
   );
 }
