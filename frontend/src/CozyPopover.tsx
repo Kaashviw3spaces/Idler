@@ -70,8 +70,60 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   addToast,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<CozyTab>('planner');
+  const [activeTab, setActiveTab] = useState<CozyTab>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('idler_active_cozy_tab') as CozyTab | null;
+        const validTabs: CozyTab[] = ['planner', 'ledger', 'duplicates', 'projects', 'workflows', 'workspaces'];
+        if (saved && validTabs.includes(saved)) {
+          return saved;
+        }
+      } catch {}
+    }
+    return 'planner';
+  });
   const [hoveredTab, setHoveredTab] = useState<CozyTab | null>(null);
+
+  // Persist active tab so clicking the menu bar icon always reopens to the same tab
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('idler_active_cozy_tab', activeTab);
+      } catch {}
+    }
+  }, [activeTab]);
+
+  // Maintain and restore active tab whenever window is shown from macOS menu bar
+  useEffect(() => {
+    const restoreSavedTab = () => {
+      try {
+        const saved = localStorage.getItem('idler_active_cozy_tab') as CozyTab | null;
+        const validTabs: CozyTab[] = ['planner', 'ledger', 'duplicates', 'projects', 'workflows', 'workspaces'];
+        if (saved && validTabs.includes(saved)) {
+          setActiveTab((prev) => (prev !== saved ? saved : prev));
+        }
+      } catch {}
+    };
+
+    let unsubscribeDesktop: (() => void) | undefined;
+    if (window.idlerDesktop?.onWindowShown) {
+      unsubscribeDesktop = window.idlerDesktop.onWindowShown(restoreSavedTab);
+    }
+
+    window.addEventListener('focus', restoreSavedTab);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        restoreSavedTab();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      if (unsubscribeDesktop) unsubscribeDesktop();
+      window.removeEventListener('focus', restoreSavedTab);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
 
   // Planner state
   const [prompt, setPrompt] = useState('');

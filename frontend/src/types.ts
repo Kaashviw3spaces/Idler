@@ -155,6 +155,7 @@ declare global {
       openStudio: () => Promise<void>;
       selectFolder?: () => Promise<string | null>;
       resizeHeight?: (height: number) => void;
+      onWindowShown?: (callback: () => void) => () => void;
     };
   }
 }

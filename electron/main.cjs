@@ -93,6 +93,9 @@ function showWindow() {
   lastWindowShowTime = Date.now();
   mainWindow.show();
   mainWindow.focus();
+  if (mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+    mainWindow.webContents.send('window-shown');
+  }
 }
 
 function toggleWindow() {
@@ -124,6 +127,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
+      backgroundThrottling: false,
     },
   });
 

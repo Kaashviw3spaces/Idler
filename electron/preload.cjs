@@ -12,5 +12,10 @@ contextBridge.exposeInMainWorld('idlerDesktop', {
   openStudio: () => ipcRenderer.invoke('open-studio'),
   selectFolder: () => ipcRenderer.invoke('select-folder'),
   resizeHeight: (height) => ipcRenderer.send('resize-height', height),
+  onWindowShown: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('window-shown', handler);
+    return () => ipcRenderer.removeListener('window-shown', handler);
+  },
 });
 

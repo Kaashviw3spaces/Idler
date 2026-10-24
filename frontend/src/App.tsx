@@ -152,7 +152,14 @@ export default function App() {
 
   // Workspace state
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
-  const [selectedWorkspace, setSelectedWorkspace] = useState<string>('');
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('idler_selected_workspace') || '';
+      } catch {}
+    }
+    return '';
+  });
   const [liveFiles, setLiveFiles] = useState<WorkspaceFilePreview[]>([]);
   const [fileFilter, setFileFilter] = useState('');
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
@@ -221,6 +228,9 @@ export default function App() {
 
   useEffect(() => {
     if (selectedWorkspace) {
+      try {
+        localStorage.setItem('idler_selected_workspace', selectedWorkspace);
+      } catch {}
       loadLiveFiles(selectedWorkspace);
     }
   }, [selectedWorkspace]);
@@ -247,8 +257,10 @@ export default function App() {
     try {
       const data = await api.fetchWorkspaces();
       setWorkspaces(data);
-      if (data.length > 0 && !selectedWorkspace) {
-        setSelectedWorkspace(data[0].path);
+      if (data.length > 0) {
+        const saved = typeof window !== 'undefined' ? localStorage.getItem('idler_selected_workspace') : null;
+        const matching = saved && data.some((w) => w.path === saved) ? saved : null;
+        setSelectedWorkspace((current) => current || matching || data[0].path);
       }
     } catch {
       // Backend may be offline
