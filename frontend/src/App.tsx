@@ -289,11 +289,28 @@ export default function App() {
     };
   }, [selectedWorkspace]);
 
+  const [isSyncing, setIsSyncing] = useState(false);
+
   async function refreshAll() {
     await loadHealth();
     await loadWorkspaces();
     await loadActions();
     await loadWorkflows();
+  }
+
+  async function handleSyncClick() {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      await Promise.allSettled([
+        refreshAll(),
+        selectedWorkspace ? loadLiveFiles(selectedWorkspace) : Promise.resolve(),
+        new Promise((resolve) => setTimeout(resolve, 800)),
+      ]);
+      addToast('success', 'System synchronized successfully');
+    } finally {
+      setIsSyncing(false);
+    }
   }
 
   async function loadHealth() {
@@ -910,13 +927,14 @@ export default function App() {
           {/* System Badges & Refresh */}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '16px', flexWrap: 'wrap' }}>
             <button
-              onClick={refreshAll}
+              onClick={handleSyncClick}
+              disabled={isSyncing}
               title="Refresh system status"
               className="studio-pill-btn"
               style={{
                 background: '#0c1322',
-                border: '1px solid #1b263e',
-                color: '#94a3b8',
+                border: isSyncing ? '1px solid #38bdf8' : '1px solid #1b263e',
+                color: isSyncing ? '#38bdf8' : '#94a3b8',
                 padding: '6px 12px',
                 borderRadius: '8px',
                 display: 'flex',
@@ -924,10 +942,18 @@ export default function App() {
                 gap: '6px',
                 fontSize: '12px',
                 fontWeight: '500',
-                cursor: 'pointer'
+                cursor: isSyncing ? 'default' : 'pointer',
+                boxShadow: isSyncing ? '0 0 12px rgba(56, 189, 248, 0.35)' : 'none',
               }}
             >
-              <RefreshCw size={13} />
+              <RefreshCw
+                size={13}
+                className={isSyncing ? 'spin-clockwise' : ''}
+                style={{
+                  transition: 'transform 0.25s ease',
+                  color: isSyncing ? '#38bdf8' : 'inherit',
+                }}
+              />
               <span>Sync</span>
             </button>
 
@@ -1356,7 +1382,7 @@ export default function App() {
                     cursor: 'pointer',
                   }}
                 >
-                  <RefreshCw size={13} className={isLoadingFiles ? 'spin' : ''} />
+                  <RefreshCw size={13} className={isLoadingFiles ? 'spin-clockwise' : ''} />
                   Rescan Disk
                 </button>
               </div>

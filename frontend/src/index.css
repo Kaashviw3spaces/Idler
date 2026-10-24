@@ -192,6 +192,21 @@ input, textarea, select {
 
 /* ─── Studio UX/UI Keyframes & Micro-Animations ────────────────────────────────── */
 
+@keyframes spinClockwise {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.spin,
+.spin-clockwise {
+  animation: spinClockwise 0.75s cubic-bezier(0.4, 0, 0.2, 1) infinite !important;
+  display: inline-block !important;
+}
+
 @keyframes neonGlowPulse {
   0%, 100% {
     box-shadow: 0 0 16px rgba(0, 195, 255, 0.65), 0 0 32px rgba(0, 195, 255, 0.3);
