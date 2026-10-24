@@ -14,7 +14,6 @@ import {
   Trash2,
   Play,
   ChevronRight,
-  ChevronDown,
 } from 'lucide-react';
 import {
   PlanResponse,
@@ -355,7 +354,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
       case 'workflows':
         return `SAVED WORKFLOWS (${workflows.length})`;
       case 'workspaces':
-        return `LOCAL WORKSPACES (${workspaces.length})`;
+        return 'ACTIVE FOLDER TO SCAN ON COMPUTER';
     }
   }
 
@@ -633,153 +632,6 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         {/* TAB 1: SCAN & PLAN */}
         {activeTab === 'planner' && (
           <>
-            {/* Active Folder to Scan on Computer */}
-            <div
-              style={{
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '12px',
-                padding: '9px 10px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '7px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <FolderOpen size={13} color="#3b82f6" />
-                  <span style={{ fontSize: '11px', fontWeight: '600', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-                    Active Folder to Scan on Computer
-                  </span>
-                </div>
-                <button
-                  onClick={handleSelectAndAddFolder}
-                  title="Add folder from computer"
-                  className="cozy-action-btn"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    background: 'rgba(37, 99, 235, 0.22)',
-                    border: '1px solid rgba(59, 130, 246, 0.4)',
-                    borderRadius: '6px',
-                    padding: '2px 8px',
-                    color: '#60a5fa',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <FolderPlus size={12} />
-                  <span>+ Add Folder</span>
-                </button>
-              </div>
-
-              {/* Folder Selector Dropdown */}
-              <div style={{ position: 'relative' }}>
-                <select
-                  value={selectedWorkspace}
-                  onChange={(e) => {
-                    if (e.target.value === '__add_new__') {
-                      handleSelectAndAddFolder();
-                    } else {
-                      onSelectWorkspace(e.target.value);
-                      const found = workspaces.find((w) => w.path === e.target.value);
-                      addToast('info', `Active folder: ${found?.name || e.target.value}`);
-                    }
-                  }}
-                  style={{
-                    width: '100%',
-                    background: 'rgba(15, 23, 42, 0.75)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    borderRadius: '8px',
-                    padding: '6px 28px 6px 10px',
-                    color: '#f8fafc',
-                    fontSize: '12px',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    outline: 'none',
-                    appearance: 'none',
-                    WebkitAppearance: 'none',
-                    textOverflow: 'ellipsis',
-                    overflow: 'hidden',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {workspaces.map((ws) => (
-                    <option key={ws.path} value={ws.path} style={{ background: '#18151e', color: '#f8fafc' }}>
-                      {ws.name} ({ws.files_count} files) — {ws.path}
-                    </option>
-                  ))}
-                  <option value="__add_new__" style={{ background: '#18151e', color: '#60a5fa' }}>
-                    ➕ Browse computer for new folder…
-                  </option>
-                </select>
-                <ChevronDown
-                  size={13}
-                  color="#94a3b8"
-                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-                />
-              </div>
-
-              {/* Inline manual path entry fallback */}
-              {isAddingManualFolder && (
-                <div style={{ display: 'flex', gap: '6px', marginTop: '2px', animation: 'accordionExpand 0.2s ease-out' }}>
-                  <input
-                    type="text"
-                    placeholder="/path/to/folder or ~/Documents"
-                    value={manualFolderPath}
-                    onChange={(e) => setManualFolderPath(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleRegisterNewFolder(manualFolderPath);
-                      if (e.key === 'Escape') setIsAddingManualFolder(false);
-                    }}
-                    autoFocus
-                    style={{
-                      flex: 1,
-                      background: 'rgba(0, 0, 0, 0.45)',
-                      border: '1px solid rgba(255, 255, 255, 0.16)',
-                      borderRadius: '6px',
-                      padding: '5px 8px',
-                      fontSize: '11px',
-                      color: '#ffffff',
-                      outline: 'none',
-                    }}
-                  />
-                  <button
-                    onClick={() => handleRegisterNewFolder(manualFolderPath)}
-                    disabled={isRegisteringFolder || !manualFolderPath.trim()}
-                    style={{
-                      background: '#2563eb',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '5px 10px',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      color: '#ffffff',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {isRegisteringFolder ? 'Adding…' : 'Add'}
-                  </button>
-                  <button
-                    onClick={() => setIsAddingManualFolder(false)}
-                    style={{
-                      background: 'transparent',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '6px',
-                      padding: '5px 8px',
-                      fontSize: '11px',
-                      color: '#94a3b8',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-
             {/* Row 1: Auto-sort files by category with Spring iOS Toggle */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
               <span style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: '500' }}>
@@ -1392,17 +1244,12 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
 
         {/* TAB 6: WORKSPACES */}
         {activeTab === 'workspaces' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
-            {/* Header: Active Folder to Scan on Computer + Add Folder Button */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {/* Top Bar: Subtitle & Minimalist + Add Folder Button */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: '#f8fafc' }}>
-                  Active Folder to Scan on Computer
-                </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                  {workspaces.length} folders registered • Select one to scan
-                </div>
-              </div>
+              <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                Select active directory to scan ({workspaces.length})
+              </span>
               <button
                 onClick={handleSelectAndAddFolder}
                 className="cozy-action-btn"
@@ -1410,43 +1257,22 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '5px',
-                  background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                  color: '#ffffff',
+                  background: 'rgba(37, 99, 235, 0.22)',
+                  border: '1px solid rgba(59, 130, 246, 0.4)',
+                  borderRadius: '7px',
+                  padding: '4px 9px',
+                  color: '#60a5fa',
                   fontSize: '11px',
                   fontWeight: '600',
                   cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.4)',
                 }}
               >
-                <FolderPlus size={13} />
+                <FolderPlus size={12} />
                 <span>+ Add Folder</span>
               </button>
             </div>
 
-            {/* Quick manual path toggle row */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
-              <button
-                onClick={() => setIsAddingManualFolder(!isAddingManualFolder)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#60a5fa',
-                  fontSize: '11px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              >
-                <span>{isAddingManualFolder ? '− Hide manual path input' : '+ Or type/paste path directly…'}</span>
-              </button>
-            </div>
-
-            {/* Manual Path Input Form */}
+            {/* Manual Path Input Fallback Form */}
             {isAddingManualFolder && (
               <div style={{ display: 'flex', gap: '6px', animation: 'accordionExpand 0.2s ease-out' }}>
                 <input
@@ -1463,8 +1289,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                     flex: 1,
                     background: 'rgba(0, 0, 0, 0.45)',
                     border: '1px solid rgba(255, 255, 255, 0.16)',
-                    borderRadius: '8px',
-                    padding: '6px 10px',
+                    borderRadius: '7px',
+                    padding: '5px 9px',
                     fontSize: '11px',
                     color: '#ffffff',
                     outline: 'none',
@@ -1476,23 +1302,23 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   style={{
                     background: '#2563eb',
                     border: 'none',
-                    borderRadius: '8px',
-                    padding: '6px 12px',
+                    borderRadius: '7px',
+                    padding: '5px 10px',
                     fontSize: '11px',
                     fontWeight: '600',
                     color: '#ffffff',
                     cursor: 'pointer',
                   }}
                 >
-                  {isRegisteringFolder ? 'Adding…' : 'Add & Scan'}
+                  {isRegisteringFolder ? 'Adding…' : 'Add'}
                 </button>
                 <button
                   onClick={() => setIsAddingManualFolder(false)}
                   style={{
                     background: 'transparent',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '8px',
-                    padding: '6px 10px',
+                    borderRadius: '7px',
+                    padding: '5px 8px',
                     fontSize: '11px',
                     color: '#94a3b8',
                     cursor: 'pointer',
