@@ -1,7 +1,7 @@
 // Ensure Electron does not inherit node CLI mode from parent shell
 delete process.env.ELECTRON_RUN_AS_NODE;
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, shell, Notification, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, Notification, nativeImage, screen } = require('electron');
 const path = require('path');
 const { spawn, exec } = require('child_process');
 const http = require('http');
@@ -44,20 +44,43 @@ function getTrayIcon() {
 }
 
 function getWindowPosition() {
-  if (!tray || !mainWindow) return { x: 0, y: 0 };
+  if (!mainWindow) return { x: 0, y: 0 };
   const windowBounds = mainWindow.getBounds();
-  const trayBounds = tray.getBounds();
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-  if (process.platform === 'darwin') {
-    const x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
-    const y = Math.round(trayBounds.y + trayBounds.height + 4);
-    return { x, y };
+  let x = 0;
+  let y = 0;
+
+  if (tray) {
+    const trayBounds = tray.getBounds();
+    if (trayBounds && trayBounds.x > 0) {
+      x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
+      y = Math.round(trayBounds.y + trayBounds.height + 4);
+    } else {
+      // Default position: top right corner near macOS menu bar
+      x = screenWidth - windowBounds.width - 20;
+      y = 30;
+    }
   } else {
-    const x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
-    const y = Math.round(trayBounds.y - windowBounds.height - 4);
-    return { x, y };
+    x = screenWidth - windowBounds.width - 20;
+    y = 30;
   }
+
+  // Ensure window stays within visible screen area
+  if (x < 10) x = 10;
+  if (x + windowBounds.width > screenWidth - 10) {
+    x = screenWidth - windowBounds.width - 10;
+  }
+  if (y < 25) y = 25;
+  if (y + windowBounds.height > screenHeight - 10) {
+    y = screenHeight - windowBounds.height - 10;
+  }
+
+  return { x, y };
 }
+
+let lastWindowShowTime = 0;
 
 function showWindow() {
   if (!mainWindow) {
@@ -66,6 +89,7 @@ function showWindow() {
   }
   const { x, y } = getWindowPosition();
   mainWindow.setPosition(x, y, false);
+  lastWindowShowTime = Date.now();
   mainWindow.show();
   mainWindow.focus();
 }
@@ -124,12 +148,16 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     const { x, y } = getWindowPosition();
     mainWindow.setPosition(x, y, false);
+    lastWindowShowTime = Date.now();
     mainWindow.show();
     mainWindow.focus();
   });
 
-  // Auto-hide when user clicks outside the popover window
+  // Auto-hide when user clicks outside the popover window (with a grace window on launch)
   mainWindow.on('blur', () => {
+    if (Date.now() - lastWindowShowTime < 1500) {
+      return;
+    }
     if (!mainWindow.webContents.isDevToolsOpened()) {
       mainWindow.hide();
     }
