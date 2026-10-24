@@ -21,6 +21,7 @@ import {
   Archive,
   FileSpreadsheet,
   File,
+  Download,
 } from 'lucide-react';
 import {
   PlanResponse,
@@ -1117,9 +1118,28 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         {/* TAB 2: ACTION LEDGER & UNDO */}
         {activeTab === 'ledger' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ fontSize: '12px', color: '#cbd5e1', display: 'flex', justifyContent: 'space-between', padding: '0 2px' }}>
-              <span>Recent File Actions</span>
-              <span style={{ color: '#8a8790' }}>{actions.length} operations</span>
+            <div style={{ fontSize: '12px', color: '#cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 2px' }}>
+              <span>Recent File Actions ({actions.length})</span>
+              {actions.length > 0 && (
+                <a
+                  href="http://127.0.0.1:8000/api/actions/export?format=csv"
+                  download="idler-actions.csv"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '10px',
+                    color: '#38bdf8',
+                    textDecoration: 'none',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    background: 'rgba(56, 189, 248, 0.1)',
+                    border: '1px solid rgba(56, 189, 248, 0.25)',
+                  }}
+                >
+                  <Download size={10} /> Export CSV
+                </a>
+              )}
             </div>
             {actions.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '24px 10px', color: '#8a8790', fontSize: '12px' }}>

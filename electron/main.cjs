@@ -26,22 +26,27 @@ if (!gotTheLock) {
 
 function getTrayIcon() {
   const fs = require('fs');
-  const colorTrayPath = path.join(__dirname, 'assets', 'tray@2x.png');
-  const templatePath = path.join(__dirname, 'assets', 'trayTemplate.png');
+  const templatePath2x = path.join(__dirname, 'assets', 'trayTemplate@2x.png');
+  const templatePath1x = path.join(__dirname, 'assets', 'trayTemplate.png');
+  const whiteTrayPath = path.join(__dirname, 'assets', 'tray@2x.png');
 
-  if (fs.existsSync(colorTrayPath)) {
-    const icon = nativeImage.createFromPath(colorTrayPath);
-    if (!icon.isEmpty()) {
-      return icon.resize({ width: 22, height: 22 });
-    }
+  let icon = null;
+  if (fs.existsSync(templatePath2x)) {
+    icon = nativeImage.createFromPath(templatePath2x);
+  } else if (fs.existsSync(templatePath1x)) {
+    icon = nativeImage.createFromPath(templatePath1x);
+  } else if (fs.existsSync(whiteTrayPath)) {
+    icon = nativeImage.createFromPath(whiteTrayPath);
   }
 
-  let icon = nativeImage.createFromPath(templatePath);
-  if (icon.isEmpty()) {
+  if (!icon || icon.isEmpty()) {
     const fallbackDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAAMElEQVR42mNkIAAYCQlYqGkeNYx6ZEAOGhgYGBghfAawGkYNY9SM0YyG6gEMDAAAK1gCBd3P+GMAAAAASUVORK5CYII=';
     icon = nativeImage.createFromDataURL(fallbackDataUri);
   }
-  return icon.resize({ width: 22, height: 22 });
+
+  const resized = icon.resize({ width: 20, height: 20 });
+  resized.setTemplateImage(true);
+  return resized;
 }
 
 function getWindowPosition() {
@@ -264,9 +269,22 @@ function ensureBackend() {
     }
   }).on('error', () => {
     console.log('Starting FastAPI backend server...');
-    const pythonBin = path.join(__dirname, '..', 'backend', 'venv', 'bin', 'python');
+    const candidates = [
+      path.join(__dirname, '..', 'backend', 'venv', 'bin', 'python'),
+      '/Users/kashvi/Desktop/Idler/backend/venv/bin/python',
+      path.join(process.resourcesPath || '', 'backend', 'venv', 'bin', 'python'),
+    ];
+    let pythonBin = 'python3';
+    let workDir = '/Users/kashvi/Desktop/Idler';
+    for (const c of candidates) {
+      if (require('fs').existsSync(c)) {
+        pythonBin = c;
+        workDir = path.resolve(path.dirname(c), '..', '..');
+        break;
+      }
+    }
     backendProcess = spawn(pythonBin, ['-m', 'uvicorn', 'backend.app.main:app', '--host', '127.0.0.1', '--port', '8000'], {
-      cwd: path.join(__dirname, '..'),
+      cwd: workDir,
       stdio: 'ignore',
     });
   });
