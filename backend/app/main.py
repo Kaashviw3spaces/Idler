@@ -86,15 +86,22 @@ app.add_middleware(
 # Register routes
 app.include_router(core_router)
 
+# Mount production frontend if built
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
 
-@app.get("/")
-def root():
-    return {
-        "project": "Idler",
-        "tagline": "Stop doing repetitive work. Let your AI handle it.",
-        "status": "online",
-        "docs_url": "/docs",
-    }
+dist_dir = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+if dist_dir.exists():
+    app.mount("/", StaticFiles(directory=str(dist_dir), html=True), name="frontend")
+else:
+    @app.get("/")
+    def root():
+        return {
+            "project": "Idler",
+            "tagline": "Stop doing repetitive work. Let your AI handle it.",
+            "status": "online",
+            "docs_url": "/docs",
+        }
 
 
 if __name__ == "__main__":
