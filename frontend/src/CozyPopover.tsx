@@ -93,6 +93,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   // Workflow running state
   const [runningWfId, setRunningWfId] = useState<string | null>(null);
 
+  const activeWsObj = workspaces.find((w) => w.path === selectedWorkspace) || workspaces[0];
+
   // 8 Minimalist Chips in 2x4 grid (matching screenshot layout)
   const chipsRow1 = [
     { label: 'Downloads', query: 'Organize files in Downloads folder by category' },
@@ -317,6 +319,66 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
           zIndex: 2,
         }}
       />
+
+      {/* Top Status Banner Card with Quick Sort Button */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #007aff 0%, #0060df 100%)',
+          borderRadius: '14px',
+          padding: '10px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxShadow: '0 4px 14px rgba(0, 122, 255, 0.35)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.22)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+            }}
+          >
+            <Sparkles size={16} color="#ffffff" />
+          </div>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff', lineHeight: 1.2 }}>
+              Idler Local AI
+            </div>
+            <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.85)', marginTop: '2px' }}>
+              {activeWsObj ? `${activeWsObj.name} • ${activeWsObj.files_count} files` : 'Ready to organize'}
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={() => {
+            setActiveTab('planner');
+            handleRunPrompt('Organize all unorganized files by category');
+          }}
+          disabled={isPlanning}
+          style={{
+            background: '#ffffff',
+            color: '#007aff',
+            border: 'none',
+            borderRadius: '16px',
+            padding: '5px 14px',
+            fontSize: '12px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          {isPlanning ? 'Thinking…' : 'Quick Sort'}
+        </button>
+      </div>
 
       {/* 1. Center Hero Mascot: Pure White & Cool Sloth (No Background) */}
       <div
