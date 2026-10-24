@@ -82,8 +82,6 @@ def list_workspaces(db: Session = Depends(get_db)):
 
     for ws in workspaces:
         ws_str = str(ws)
-        if "test_workspace" in ws_str.lower():
-            continue
         if ws_str not in seen_paths and ws.exists() and ws.is_dir():
             seen_paths.add(ws_str)
             scan = scan_directory(".", ws, recursive=True, max_files=1000)

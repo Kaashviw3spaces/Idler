@@ -99,16 +99,32 @@ def validate_new_workspace_path(path_str: str) -> Path:
     return candidate
 
 
+def _is_repo_test_workspace(p: Path) -> bool:
+    """Returns True if p is the legacy repository test_workspace folder on disk."""
+    try:
+        resolved = p.resolve()
+        for tmp_prefix in [Path("/tmp"), Path("/private/tmp"), Path("/private/var/folders"), Path("/var/folders")]:
+            try:
+                res_tmp = tmp_prefix.resolve()
+                if resolved == res_tmp or resolved.is_relative_to(res_tmp):
+                    return False
+            except (RuntimeError, ValueError, OSError):
+                continue
+        return "test_workspace" in resolved.name.lower() or resolved == (Path.cwd() / "test_workspace").resolve()
+    except Exception:
+        return False
+
+
 def get_all_allowed_roots(db: Optional[object] = None) -> list[Path]:
     """Returns all statically configured and dynamically registered allowed workspace roots."""
-    roots = [p for p in settings.get_allowed_workspaces() if "test_workspace" not in str(p).lower()]
+    roots = [p for p in settings.get_allowed_workspaces() if not _is_repo_test_workspace(p)]
     try:
         from backend.app.db.models import WorkspaceDB
         if db is not None:
             db_workspaces = db.query(WorkspaceDB).all()  # type: ignore[attr-defined]
             for w in db_workspaces:
                 p = Path(w.path).resolve()
-                if "test_workspace" not in str(p).lower() and p not in roots and p.exists() and p.is_dir():
+                if not _is_repo_test_workspace(p) and p not in roots and p.exists() and p.is_dir():
                     roots.append(p)
         else:
             from backend.app.db.database import SessionLocal
@@ -117,7 +133,7 @@ def get_all_allowed_roots(db: Optional[object] = None) -> list[Path]:
                 db_workspaces = session.query(WorkspaceDB).all()
                 for w in db_workspaces:
                     p = Path(w.path).resolve()
-                    if "test_workspace" not in str(p).lower() and p not in roots and p.exists() and p.is_dir():
+                    if not _is_repo_test_workspace(p) and p not in roots and p.exists() and p.is_dir():
                         roots.append(p)
             finally:
                 session.close()
