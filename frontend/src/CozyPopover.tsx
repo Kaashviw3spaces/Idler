@@ -1,17 +1,25 @@
 import React, { useState } from 'react';
 import {
+  Sparkles,
+  History,
+  Search,
+  Code2,
+  FolderSync,
+  FolderOpen,
   ArrowRight,
   Settings,
   Power,
   RotateCcw,
   Trash2,
-  Play
+  Play,
 } from 'lucide-react';
 import {
   PlanResponse,
   ActionRecord,
   WorkspaceItem,
   DuplicateScanResult,
+  WorkflowItem,
+  ProjectInspectionResult,
 } from './types';
 import { SoundPlatform, playTaskCompleteChime, playMacChime, playWindowsChime } from './sound';
 import * as api from './api';
@@ -23,6 +31,8 @@ interface CozyPopoverProps {
   actions: ActionRecord[];
   onRefreshActions: () => Promise<void>;
   onRefreshWorkspaces: () => Promise<void>;
+  workflows?: WorkflowItem[];
+  onRefreshWorkflows?: () => Promise<void>;
   soundMode: SoundPlatform;
   onChangeSoundMode: (mode: SoundPlatform) => void;
   soundMuted: boolean;
@@ -32,7 +42,7 @@ interface CozyPopoverProps {
   addToast: (kind: 'success' | 'error' | 'info', message: string) => void;
 }
 
-type CozyTab = 'planner' | 'clean' | 'workspaces' | 'duplicates' | 'ledger' | 'sound';
+type CozyTab = 'planner' | 'ledger' | 'duplicates' | 'projects' | 'workflows' | 'workspaces';
 
 function fmtBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -47,6 +57,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   actions,
   onRefreshActions,
   onRefreshWorkspaces,
+  workflows = [],
+  onRefreshWorkflows,
   soundMode,
   onChangeSoundMode,
   soundMuted,
@@ -56,17 +68,30 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   addToast,
 }) => {
   const [activeTab, setActiveTab] = useState<CozyTab>('planner');
+  const [hoveredTab, setHoveredTab] = useState<CozyTab | null>(null);
+
+  // Planner state
   const [prompt, setPrompt] = useState('');
   const [isPlanning, setIsPlanning] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<PlanResponse | null>(null);
   const [autoSortEnabled, setAutoSortEnabled] = useState(true);
+
+  // Duplicates state
   const [dupScan, setDupScan] = useState<DuplicateScanResult | null>(null);
   const [isScanningDups, setIsScanningDups] = useState(false);
 
+  // Project inspector state
+  const [projPath, setProjPath] = useState('.');
+  const [isInspectingProj, setIsInspectingProj] = useState(false);
+  const [projResult, setProjResult] = useState<ProjectInspectionResult | null>(null);
+
+  // Workflow running state
+  const [runningWfId, setRunningWfId] = useState<string | null>(null);
+
   const activeWsObj = workspaces.find((w) => w.path === selectedWorkspace) || workspaces[0];
 
-  // Quick Chips
+  // Quick Chips for Planner
   const quickChips = [
     { label: 'Downloads', query: 'Organize files in Downloads folder by category' },
     { label: 'Sort Images', query: 'Move all images into Images subfolder' },
@@ -74,6 +99,40 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     { label: 'Duplicates', action: 'duplicates' },
     { label: 'Clean Temp', query: 'Identify temporary and scratch files' },
     { label: 'Spreadsheets', query: 'Group Excel and CSV spreadsheets into Spreadsheets' },
+  ];
+
+  // 6 Tabs exactly matching the attachment
+  const tabs: { id: CozyTab; label: string; icon: React.ReactNode }[] = [
+    {
+      id: 'planner',
+      label: 'Scan & Plan',
+      icon: <Sparkles size={15} />,
+    },
+    {
+      id: 'ledger',
+      label: `Action Ledger & Undo (${actions.length})`,
+      icon: <History size={15} />,
+    },
+    {
+      id: 'duplicates',
+      label: 'Duplicate Finder',
+      icon: <Search size={15} />,
+    },
+    {
+      id: 'projects',
+      label: 'Project Inspector',
+      icon: <Code2 size={15} />,
+    },
+    {
+      id: 'workflows',
+      label: `Saved Workflows (${workflows.length})`,
+      icon: <FolderSync size={15} />,
+    },
+    {
+      id: 'workspaces',
+      label: `Workspaces (${workspaces.length})`,
+      icon: <FolderOpen size={15} />,
+    },
   ];
 
   async function handleRunPrompt(queryToRun?: string) {
@@ -151,63 +210,138 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     }
   }
 
-  return (
-    <div style={{
-      width: '100%',
-      maxWidth: '380px',
-      margin: '0 auto',
-      background: 'rgba(23, 26, 35, 0.94)',
-      backdropFilter: 'blur(36px) saturate(180%)',
-      WebkitBackdropFilter: 'blur(36px) saturate(180%)',
-      border: '1px solid rgba(255, 255, 255, 0.12)',
-      borderRadius: '22px',
-      boxShadow: '0 20px 50px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(0,0,0,0.5)',
-      padding: '14px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '12px',
-      color: '#f8fafc',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      position: 'relative',
-      userSelect: 'none',
-      boxSizing: 'border-box',
-    }}>
-      {/* Top Anchor Notch pointing to menu bar */}
-      <div style={{
-        position: 'absolute',
-        top: '-6px',
-        left: '50%',
-        transform: 'translateX(-50%) rotate(45deg)',
-        width: '12px',
-        height: '12px',
-        background: '#171a23',
-        borderTop: '1px solid rgba(255, 255, 255, 0.15)',
-        borderLeft: '1px solid rgba(255, 255, 255, 0.15)',
-        zIndex: 2,
-      }} />
+  async function handleInspectProject() {
+    setIsInspectingProj(true);
+    try {
+      const res = await api.inspectProject(projPath || '.', selectedWorkspace || undefined);
+      setProjResult(res);
+      addToast('success', `Inspected repository: detected ${res.project_type.toUpperCase()} stack`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', msg);
+    } finally {
+      setIsInspectingProj(false);
+    }
+  }
 
-      {/* 1. Top Status Banner Card (Matching Blue Card in Screenshot) */}
-      <div style={{
-        background: 'linear-gradient(135deg, #007aff 0%, #0060df 100%)',
-        borderRadius: '14px',
-        padding: '10px 14px',
+  async function handleToggleWorkflow(wfId: string) {
+    try {
+      await api.toggleWorkflow(wfId);
+      if (onRefreshWorkflows) await onRefreshWorkflows();
+      addToast('info', 'Workflow schedule updated');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', msg);
+    }
+  }
+
+  async function handleRunWorkflow(wf: WorkflowItem) {
+    setRunningWfId(wf.id);
+    try {
+      const res = await api.runWorkflow(wf.id);
+      addToast('success', `Workflow executed: ${res.completed_actions}/${res.total_actions} actions`);
+      playTaskCompleteChime(soundMode);
+      await onRefreshActions();
+      await onRefreshWorkspaces();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', msg);
+    } finally {
+      setRunningWfId(null);
+    }
+  }
+
+  const effectiveTab = hoveredTab || activeTab;
+
+  function getTabHeaderTitle(t: CozyTab): string {
+    switch (t) {
+      case 'planner':
+        return 'SCAN & PLAN (LOCAL AI)';
+      case 'ledger':
+        return `ACTION LEDGER & UNDO (${actions.length})`;
+      case 'duplicates':
+        return 'CRYPTOGRAPHIC DUPLICATE FINDER';
+      case 'projects':
+        return 'PROJECT & REPOSITORY INSPECTOR';
+      case 'workflows':
+        return `SAVED WORKFLOWS (${workflows.length})`;
+      case 'workspaces':
+        return `LOCAL WORKSPACES (${workspaces.length})`;
+    }
+  }
+
+  return (
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '380px',
+        margin: '0 auto',
+        background: 'rgba(23, 26, 35, 0.94)',
+        backdropFilter: 'blur(36px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(36px) saturate(180%)',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        borderRadius: '22px',
+        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(0,0,0,0.5)',
+        padding: '14px',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        boxShadow: '0 4px 14px rgba(0, 122, 255, 0.35)',
-      }}>
+        flexDirection: 'column',
+        gap: '12px',
+        color: '#f8fafc',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        position: 'relative',
+        userSelect: 'none',
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* Top Anchor Notch pointing to menu bar */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '-6px',
+          left: '50%',
+          transform: 'translateX(-50%) rotate(45deg)',
+          width: '12px',
+          height: '12px',
+          background: '#171a23',
+          borderTop: '1px solid rgba(255, 255, 255, 0.15)',
+          borderLeft: '1px solid rgba(255, 255, 255, 0.15)',
+          zIndex: 2,
+        }}
+      />
+
+      {/* 1. Top Status Banner Card */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #007aff 0%, #0060df 100%)',
+          borderRadius: '14px',
+          padding: '10px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxShadow: '0 4px 14px rgba(0, 122, 255, 0.35)',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            width: '28px',
-            height: '28px',
-            borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.22)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '15px',
-          }}>
-            🦥
+          <div
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.22)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+            }}
+          >
+            <img
+              src="./sloth.png"
+              alt="Idler"
+              style={{ width: '22px', height: '22px', objectFit: 'contain' }}
+              onError={(e) => {
+                (e.currentTarget as HTMLElement).style.display = 'none';
+              }}
+            />
           </div>
           <div>
             <div style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff', lineHeight: 1.2 }}>
@@ -220,7 +354,10 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         </div>
 
         <button
-          onClick={() => handleRunPrompt('Organize all unorganized files by category')}
+          onClick={() => {
+            setActiveTab('planner');
+            handleRunPrompt('Organize all unorganized files by category');
+          }}
           disabled={isPlanning}
           style={{
             background: '#ffffff',
@@ -239,30 +376,36 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
       </div>
 
       {/* 2. Center Mascot Hero Icon */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '2px 0',
-      }}>
-        <div style={{
-          position: 'relative',
+      <div
+        style={{
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-        }}>
-          {/* Subtle Ambient Halo */}
-          <div style={{
-            position: 'absolute',
-            width: '60px',
-            height: '60px',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(56, 189, 248, 0.25) 0%, transparent 70%)',
-            pointerEvents: 'none',
-          }} />
+          padding: '2px 0',
+        }}
+      >
+        <div
+          style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {/* Ambient Glow */}
+          <div
+            style={{
+              position: 'absolute',
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(56, 189, 248, 0.25) 0%, transparent 70%)',
+              pointerEvents: 'none',
+            }}
+          />
           <img
-            src="/sloth.png"
+            src="./sloth.png"
             alt="Idler Sloth Mascot"
             style={{
               width: '46px',
@@ -277,82 +420,141 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         </div>
       </div>
 
-      {/* 3. Segmented Icon Tab Bar (Matching Horizontal Pill in Screenshot) */}
-      <div style={{
-        background: '#1d222e',
-        border: '1px solid #283042',
-        borderRadius: '12px',
-        padding: '3px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '4px',
-      }}>
-        {[
-          { id: 'planner', icon: '💤', label: 'Planner' },
-          { id: 'clean', icon: '🧹', label: 'Clean' },
-          { id: 'workspaces', icon: '🗂️', label: 'Spaces' },
-          { id: 'duplicates', icon: '⚡', label: 'Duplicates' },
-          { id: 'ledger', icon: '📜', label: 'History' },
-          { id: 'sound', icon: soundMuted ? '🔇' : '🔔', label: 'Sound' },
-        ].map((tab) => {
+      {/* 3. Segmented Icon Tab Bar with Hover Labels */}
+      <div
+        onMouseLeave={() => setHoveredTab(null)}
+        style={{
+          background: '#1d222e',
+          border: '1px solid #283042',
+          borderRadius: '12px',
+          padding: '4px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          position: 'relative',
+        }}
+      >
+        {/* Floating Tooltip Pill on Hover */}
+        {hoveredTab && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 'calc(100% + 8px)',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(15, 23, 42, 0.96)',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              borderRadius: '8px',
+              padding: '4px 10px',
+              fontSize: '11px',
+              fontWeight: '600',
+              color: '#ffffff',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+              pointerEvents: 'none',
+              zIndex: 50,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              animation: 'popoverTooltipIn 0.15s ease-out forwards',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', color: '#60a5fa' }}>
+              {tabs.find((t) => t.id === hoveredTab)?.icon}
+            </span>
+            <span>{tabs.find((t) => t.id === hoveredTab)?.label}</span>
+          </div>
+        )}
+
+        {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
+          const isHovered = hoveredTab === tab.id;
+
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as CozyTab)}
+              onClick={() => setActiveTab(tab.id)}
+              onMouseEnter={() => setHoveredTab(tab.id)}
               title={tab.label}
               style={{
-                flex: 1,
-                padding: '7px 0',
-                background: isActive ? '#2563eb' : 'transparent',
+                flex: isHovered ? '1 1 auto' : hoveredTab ? '0 0 32px' : '1 1 0px',
+                minWidth: '32px',
+                maxWidth: isHovered ? '210px' : undefined,
+                height: '32px',
+                padding: isHovered ? '0 10px' : '0 6px',
+                background: isActive ? '#2563eb' : isHovered ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
                 border: 'none',
                 borderRadius: '8px',
-                color: isActive ? '#ffffff' : '#8a99ad',
-                fontSize: '14px',
+                color: isActive ? '#ffffff' : isHovered ? '#ffffff' : '#94a3b8',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
-                transition: 'all 0.15s ease',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+                position: 'relative',
               }}
             >
-              <span>{tab.icon}</span>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {tab.icon}
+              </span>
+
+              {/* Text displayed beside the icon on hover */}
+              {isHovered && (
+                <span
+                  style={{
+                    marginLeft: '6px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    color: isActive ? '#ffffff' : '#f8fafc',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    animation: 'popoverTextIn 0.18s ease-out forwards',
+                  }}
+                >
+                  {tab.label}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
       {/* 4. Section Label */}
-      <div style={{
-        fontSize: '11px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-        color: '#64748b',
-        textTransform: 'uppercase',
-        paddingLeft: '2px',
-      }}>
-        {activeTab === 'planner' && 'LOCAL AI PLANNER'}
-        {activeTab === 'clean' && 'QUICK HOUSEKEEPING'}
-        {activeTab === 'workspaces' && 'ACTIVE WORKSPACE'}
-        {activeTab === 'duplicates' && 'DUPLICATE CLEANER'}
-        {activeTab === 'ledger' && 'RECENT ACTIONS & UNDO'}
-        {activeTab === 'sound' && 'AUDIO CHIME SETTINGS'}
+      <div
+        style={{
+          fontSize: '11px',
+          fontWeight: '700',
+          letterSpacing: '0.8px',
+          color: '#64748b',
+          textTransform: 'uppercase',
+          paddingLeft: '2px',
+          transition: 'color 0.2s ease',
+        }}
+      >
+        {getTabHeaderTitle(effectiveTab)}
       </div>
 
-      {/* 5. Main Card Container (Matching Rounded Box in Screenshot) */}
-      <div style={{
-        background: '#1d222e',
-        border: '1px solid #2b3345',
-        borderRadius: '16px',
-        padding: '14px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-      }}>
+      {/* 5. Main Card Container */}
+      <div
+        style={{
+          background: '#1d222e',
+          border: '1px solid #2b3345',
+          borderRadius: '16px',
+          padding: '14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          minHeight: '220px',
+        }}
+      >
+        {/* TAB 1: SCAN & PLAN */}
         {activeTab === 'planner' && (
           <>
-            {/* Toggle Row (Matching Screenshot Toggle) */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: '500' }}>
                 Auto-sort files by category
@@ -369,25 +571,28 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   transition: 'background 0.2s',
                 }}
               >
-                <div style={{
-                  position: 'absolute',
-                  top: '2px',
-                  left: autoSortEnabled ? '20px' : '2px',
-                  width: '20px',
-                  height: '20px',
-                  borderRadius: '50%',
-                  background: autoSortEnabled ? '#0f172a' : '#94a3b8',
-                  transition: 'left 0.2s',
-                }} />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '2px',
+                    left: autoSortEnabled ? '20px' : '2px',
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    background: autoSortEnabled ? '#0f172a' : '#94a3b8',
+                    transition: 'left 0.2s',
+                  }}
+                />
               </div>
             </div>
 
-            {/* Chips Grid (Matching Screenshot 15m, 30m, 1h Chips) */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: '6px',
-            }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '6px',
+              }}
+            >
               {quickChips.map((chip) => (
                 <button
                   key={chip.label}
@@ -424,16 +629,18 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               Click a chip to start. Natural language assistant below.
             </div>
 
-            {/* Natural Language Prompt Input Bar */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              background: '#131722',
-              border: '1px solid #334155',
-              borderRadius: '10px',
-              padding: '6px 10px',
-              gap: '8px',
-            }}>
+            {/* Prompt input bar */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                background: '#131722',
+                border: '1px solid #334155',
+                borderRadius: '10px',
+                padding: '6px 10px',
+                gap: '8px',
+              }}
+            >
               <input
                 type="text"
                 value={prompt}
@@ -469,17 +676,19 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               </button>
             </div>
 
-            {/* Plan Review Box (if generated) */}
+            {/* Plan review */}
             {currentPlan && (
-              <div style={{
-                background: '#131826',
-                border: '1px solid #2563eb',
-                borderRadius: '10px',
-                padding: '10px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-              }}>
+              <div
+                style={{
+                  background: '#131826',
+                  border: '1px solid #2563eb',
+                  borderRadius: '10px',
+                  padding: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}
+              >
                 <div style={{ fontSize: '12px', fontWeight: '600', color: '#60a5fa' }}>
                   ⚡ {currentPlan.actions.length} Actions Proposed
                 </div>
@@ -528,48 +737,297 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
           </>
         )}
 
-        {activeTab === 'clean' && (
+        {/* TAB 2: ACTION LEDGER & UNDO */}
+        {activeTab === 'ledger' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ fontSize: '12px', color: '#cbd5e1' }}>
-              One-click cleanup presets for <strong>{activeWsObj?.name || 'Workspace'}</strong>:
+            <div style={{ fontSize: '12px', color: '#cbd5e1', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Recent File Actions</span>
+              <span style={{ color: '#94a3b8' }}>{actions.length} operations</span>
             </div>
-            {[
-              { title: 'Sort Downloads by File Type', query: 'Organize all files in Downloads by file category' },
-              { title: 'Consolidate Spreadsheets', query: 'Group Excel and CSV files into Spreadsheets folder' },
-              { title: 'Archive Screenshots', query: 'Move all screenshots into Screenshots folder' },
-              { title: 'Find & Trash Redundant Duplicates', action: 'trash-all' },
-            ].map((preset, idx) => (
-              <button
-                key={idx}
-                onClick={() => {
-                  if (preset.action === 'trash-all') {
-                    handleTrashAllDuplicates();
-                  } else {
-                    handleRunPrompt(preset.query);
-                  }
-                }}
-                style={{
-                  background: '#272f40',
-                  border: '1px solid #364157',
-                  borderRadius: '8px',
-                  padding: '9px 12px',
-                  color: '#f1f5f9',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  textAlign: 'left',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                }}
-              >
-                <span>{preset.title}</span>
-                <Play size={12} color="#38bdf8" />
-              </button>
-            ))}
+            {actions.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px 10px', color: '#64748b', fontSize: '12px' }}>
+                No operations logged yet. Run a scan & plan to get started.
+              </div>
+            ) : (
+              <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {actions.slice(0, 6).map((act) => (
+                  <div
+                    key={act.id}
+                    style={{
+                      background: '#272f40',
+                      border: '1px solid #364157',
+                      borderRadius: '8px',
+                      padding: '8px 10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <div style={{ overflow: 'hidden', paddingRight: '8px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#f1f5f9' }}>
+                        {act.action_type.toUpperCase()}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        {act.source?.split('/').pop() || 'file'}
+                      </div>
+                    </div>
+                    {!act.is_undone ? (
+                      <button
+                        onClick={() => handleUndo(act.id)}
+                        style={{
+                          background: '#334155',
+                          color: '#93c5fd',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '4px 8px',
+                          fontSize: '10px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <RotateCcw size={10} /> Undo
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: '10px', color: '#64748b', fontStyle: 'italic' }}>Undone</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
+        {/* TAB 3: DUPLICATE FINDER */}
+        {activeTab === 'duplicates' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', color: '#cbd5e1' }}>
+                {dupScan
+                  ? `${dupScan.duplicate_groups.length} duplicate groups (${fmtBytes(dupScan.total_wasted_bytes)} wasted)`
+                  : 'Scan for identical files using streaming SHA-256'}
+              </span>
+              <button
+                onClick={handleScanDuplicates}
+                disabled={isScanningDups}
+                style={{
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '5px 10px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                {isScanningDups ? 'Scanning…' : 'Scan Now'}
+              </button>
+            </div>
+
+            {dupScan && dupScan.duplicate_groups.length > 0 && (
+              <button
+                onClick={handleTrashAllDuplicates}
+                style={{
+                  background: '#dc2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Trash2 size={13} />
+                Trash Redundant Copies ({fmtBytes(dupScan.total_wasted_bytes)})
+              </button>
+            )}
+
+            {dupScan && dupScan.duplicate_groups.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '20px 10px', color: '#10b981', fontSize: '12px' }}>
+                ✨ Clean! No duplicate files found in current workspace.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4: PROJECT INSPECTOR */}
+        {activeTab === 'projects' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ fontSize: '12px', color: '#cbd5e1' }}>
+              Inspect repo manifests, languages & structure:
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input
+                type="text"
+                value={projPath}
+                onChange={(e) => setProjPath(e.target.value)}
+                placeholder="Relative path (e.g. .)"
+                style={{
+                  flex: 1,
+                  background: '#131722',
+                  border: '1px solid #334155',
+                  borderRadius: '8px',
+                  padding: '6px 8px',
+                  fontSize: '11px',
+                  color: '#ffffff',
+                }}
+              />
+              <button
+                onClick={handleInspectProject}
+                disabled={isInspectingProj}
+                style={{
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '6px 12px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <Code2 size={12} />
+                {isInspectingProj ? 'Inspecting…' : 'Inspect'}
+              </button>
+            </div>
+
+            {projResult ? (
+              <div
+                style={{
+                  background: '#131826',
+                  border: '1px solid #334155',
+                  borderRadius: '10px',
+                  padding: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>Stack</span>
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: '#38bdf8' }}>
+                    {projResult.project_type.toUpperCase()}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>Total Files</span>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#ffffff' }}>
+                    {projResult.total_files}
+                  </span>
+                </div>
+                {projResult.key_files.length > 0 && (
+                  <div style={{ fontSize: '10px', color: '#a7f3d0', marginTop: '2px' }}>
+                    Manifests: {projResult.key_files.slice(0, 3).join(', ')}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '16px 10px', color: '#64748b', fontSize: '11px' }}>
+                Safe static inspection without executing untrusted scripts.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 5: SAVED WORKFLOWS */}
+        {activeTab === 'workflows' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: '12px', color: '#cbd5e1', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Recurring Workflows</span>
+              <span style={{ color: '#94a3b8' }}>{workflows.length} configured</span>
+            </div>
+
+            {workflows.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 10px', color: '#64748b', fontSize: '12px' }}>
+                No saved workflows yet. Create recurring automations in Full Studio.
+              </div>
+            ) : (
+              <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {workflows.map((wf) => (
+                  <div
+                    key={wf.id}
+                    style={{
+                      background: '#272f40',
+                      border: '1px solid #364157',
+                      borderRadius: '8px',
+                      padding: '8px 10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ overflow: 'hidden' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#f1f5f9' }}>
+                        {wf.name}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {wf.schedule_cron ? `⏰ ${wf.schedule_cron} • ` : ''}{wf.query}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        onClick={() => handleRunWorkflow(wf)}
+                        disabled={runningWfId === wf.id}
+                        title="Run workflow now"
+                        style={{
+                          background: '#2563eb',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '4px 6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Play size={10} />
+                      </button>
+                      <div
+                        onClick={() => handleToggleWorkflow(wf.id)}
+                        style={{
+                          width: '28px',
+                          height: '16px',
+                          borderRadius: '8px',
+                          background: wf.is_active ? '#10b981' : '#334155',
+                          position: 'relative',
+                          cursor: 'pointer',
+                          transition: 'background 0.2s',
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '2px',
+                            left: wf.is_active ? '14px' : '2px',
+                            width: '12px',
+                            height: '12px',
+                            borderRadius: '50%',
+                            background: '#ffffff',
+                            transition: 'left 0.2s',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 6: WORKSPACES */}
         {activeTab === 'workspaces' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ fontSize: '12px', color: '#cbd5e1' }}>
@@ -604,250 +1062,132 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             </div>
           </div>
         )}
-
-        {activeTab === 'duplicates' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', color: '#cbd5e1' }}>
-                {dupScan ? `${dupScan.duplicate_groups.length} groups (${fmtBytes(dupScan.total_wasted_bytes)})` : 'Scan for identical files'}
-              </span>
-              <button
-                onClick={handleScanDuplicates}
-                disabled={isScanningDups}
-                style={{
-                  background: '#2563eb',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '4px 8px',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                }}
-              >
-                {isScanningDups ? 'Scanning…' : 'Scan Now'}
-              </button>
-            </div>
-
-            {dupScan && dupScan.duplicate_groups.length > 0 && (
-              <button
-                onClick={handleTrashAllDuplicates}
-                style={{
-                  background: '#dc2626',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '8px',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                }}
-              >
-                <Trash2 size={13} />
-                Trash Redundant Copies ({fmtBytes(dupScan.total_wasted_bytes)})
-              </button>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'ledger' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ fontSize: '12px', color: '#cbd5e1', display: 'flex', justifyContent: 'space-between' }}>
-              <span>Recent File Actions</span>
-              <span style={{ color: '#94a3b8' }}>{actions.length} logged</span>
-            </div>
-            <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {actions.slice(0, 5).map((act) => (
-                <div
-                  key={act.id}
-                  style={{
-                    background: '#272f40',
-                    border: '1px solid #364157',
-                    borderRadius: '8px',
-                    padding: '8px 10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <div style={{ overflow: 'hidden', paddingRight: '8px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: '600', color: '#f1f5f9' }}>
-                      {act.action_type}
-                    </div>
-                    <div style={{ fontSize: '10px', color: '#94a3b8', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                      {act.source?.split('/').pop() || 'file'}
-                    </div>
-                  </div>
-                  {!act.is_undone && (
-                    <button
-                      onClick={() => handleUndo(act.id)}
-                      style={{
-                        background: '#334155',
-                        color: '#93c5fd',
-                        border: 'none',
-                        borderRadius: '4px',
-                        padding: '3px 6px',
-                        fontSize: '10px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                    >
-                      <RotateCcw size={10} /> Undo
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'sound' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: '500' }}>
-                Mute Audio Chimes
-              </span>
-              <div
-                onClick={onToggleSoundMute}
-                style={{
-                  width: '42px',
-                  height: '24px',
-                  borderRadius: '12px',
-                  background: soundMuted ? '#334155' : '#e2e8f0',
-                  position: 'relative',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                }}
-              >
-                <div style={{
-                  position: 'absolute',
-                  top: '2px',
-                  left: soundMuted ? '2px' : '20px',
-                  width: '20px',
-                  height: '20px',
-                  borderRadius: '50%',
-                  background: soundMuted ? '#94a3b8' : '#0f172a',
-                  transition: 'left 0.2s',
-                }} />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {(['auto', 'mac', 'win'] as SoundPlatform[]).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => onChangeSoundMode(mode)}
-                  style={{
-                    flex: 1,
-                    padding: '6px 0',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    background: soundMode === mode ? '#2563eb' : '#272f40',
-                    color: soundMode === mode ? '#ffffff' : '#cbd5e1',
-                    border: '1px solid #364157',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {mode === 'auto' ? 'Auto (OS)' : mode === 'mac' ? '🍎 Mac' : '🪟 Win'}
-                </button>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <button
-                onClick={() => playMacChime()}
-                style={{
-                  flex: 1,
-                  padding: '6px',
-                  background: '#272f40',
-                  color: '#93c5fd',
-                  border: '1px solid #364157',
-                  borderRadius: '6px',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                }}
-              >
-                🍎 Test Mac Glass
-              </button>
-              <button
-                onClick={() => playWindowsChime()}
-                style={{
-                  flex: 1,
-                  padding: '6px',
-                  background: '#272f40',
-                  color: '#93c5fd',
-                  border: '1px solid #364157',
-                  borderRadius: '6px',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                }}
-              >
-                🪟 Test Windows Triad
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* 6. Second Option Card (Matching "Keep going with lid closed" in Screenshot) */}
-      <div style={{
-        background: '#1d222e',
-        border: '1px solid #2b3345',
-        borderRadius: '16px',
-        padding: '12px 14px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}>
-        <div>
-          <div style={{ fontSize: '13px', fontWeight: '500', color: '#f1f5f9' }}>
-            Audible completion chime
+      {/* 6. Second Option Card: Audible completion chime */}
+      <div
+        style={{
+          background: '#1d222e',
+          border: '1px solid #2b3345',
+          borderRadius: '16px',
+          padding: '12px 14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: '500', color: '#f1f5f9' }}>
+              Audible completion chime
+            </div>
+            <div style={{ fontSize: '11px', color: '#8896ab' }}>
+              {soundMuted
+                ? 'Muted'
+                : soundMode === 'mac'
+                ? 'macOS Glass harmonic sound'
+                : soundMode === 'win'
+                ? 'Windows ascending triad'
+                : 'Auto-detected for your OS'}
+            </div>
           </div>
-          <div style={{ fontSize: '11px', color: '#8896ab' }}>
-            {soundMuted ? 'Muted' : soundMode === 'mac' ? 'macOS Glass harmonic sound' : soundMode === 'win' ? 'Windows ascending triad' : 'Auto-detected for your OS'}
+
+          <div
+            onClick={onToggleSoundMute}
+            style={{
+              width: '42px',
+              height: '24px',
+              borderRadius: '12px',
+              background: soundMuted ? '#334155' : '#e2e8f0',
+              position: 'relative',
+              cursor: 'pointer',
+              transition: 'background 0.2s',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: '2px',
+                left: soundMuted ? '2px' : '20px',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                background: soundMuted ? '#94a3b8' : '#0f172a',
+                transition: 'left 0.2s',
+              }}
+            />
           </div>
         </div>
 
-        <div
-          onClick={onToggleSoundMute}
-          style={{
-            width: '42px',
-            height: '24px',
-            borderRadius: '12px',
-            background: soundMuted ? '#334155' : '#e2e8f0',
-            position: 'relative',
-            cursor: 'pointer',
-            transition: 'background 0.2s',
-          }}
-        >
-          <div style={{
-            position: 'absolute',
-            top: '2px',
-            left: soundMuted ? '2px' : '20px',
-            width: '20px',
-            height: '20px',
-            borderRadius: '50%',
-            background: soundMuted ? '#94a3b8' : '#0f172a',
-            transition: 'left 0.2s',
-          }} />
+        {/* OS Platform Selector */}
+        <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+          {(['auto', 'mac', 'win'] as SoundPlatform[]).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => onChangeSoundMode(mode)}
+              style={{
+                flex: 1,
+                padding: '5px 0',
+                fontSize: '11px',
+                fontWeight: '600',
+                background: soundMode === mode ? '#2563eb' : '#272f40',
+                color: soundMode === mode ? '#ffffff' : '#cbd5e1',
+                border: '1px solid #364157',
+                borderRadius: '6px',
+                cursor: 'pointer',
+              }}
+            >
+              {mode === 'auto' ? 'Auto (OS)' : mode === 'mac' ? 'Mac Glass' : 'Win Triad'}
+            </button>
+          ))}
+        </div>
+
+        {/* Chime test buttons */}
+        <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
+          <button
+            onClick={() => playMacChime()}
+            style={{
+              flex: 1,
+              padding: '6px',
+              background: '#272f40',
+              color: '#93c5fd',
+              border: '1px solid #364157',
+              borderRadius: '6px',
+              fontSize: '11px',
+              fontWeight: '600',
+              cursor: 'pointer',
+            }}
+          >
+            Test Mac Glass
+          </button>
+          <button
+            onClick={() => playWindowsChime()}
+            style={{
+              flex: 1,
+              padding: '6px',
+              background: '#272f40',
+              color: '#93c5fd',
+              border: '1px solid #364157',
+              borderRadius: '6px',
+              fontSize: '11px',
+              fontWeight: '600',
+              cursor: 'pointer',
+            }}
+          >
+            Test Windows Triad
+          </button>
         </div>
       </div>
 
-      {/* 7. Bottom Action Footer (Matching Settings & Quit Buttons in Screenshot) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '8px',
-        marginTop: '2px',
-      }}>
+      {/* 7. Bottom Action Footer */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '8px',
+          marginTop: '2px',
+        }}
+      >
         <button
           onClick={() => {
             if (onOpenStudio) {

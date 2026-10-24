@@ -742,6 +742,8 @@ export default function App() {
           actions={actions}
           onRefreshActions={loadActions}
           onRefreshWorkspaces={loadWorkspaces}
+          workflows={workflows}
+          onRefreshWorkflows={loadWorkflows}
           soundMode={soundMode}
           onChangeSoundMode={handleChangeSoundMode}
           soundMuted={soundMuted}

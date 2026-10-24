@@ -48,6 +48,44 @@ input, textarea, select {
   width: 6px;
   height: 6px;
 }
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+@keyframes popoverTextIn {
+  0% {
+    opacity: 0;
+    max-width: 0;
+    transform: translateX(-4px);
+  }
+  100% {
+    opacity: 1;
+    max-width: 180px;
+    transform: translateX(0);
+  }
+}
+
+@keyframes popoverTooltipIn {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 4px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
 ::-webkit-scrollbar-track {
   background: var(--bg-primary);
 }
