@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   Sparkles,
   History,
@@ -128,38 +128,6 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     }
   }, [activeTab]);
 
-  // Maintain and restore active tab whenever window is shown from macOS menu bar
-  useEffect(() => {
-    const restoreSavedTab = () => {
-      try {
-        const saved = localStorage.getItem('idler_active_cozy_tab') as CozyTab | null;
-        const validTabs: CozyTab[] = ['planner', 'ledger', 'duplicates', 'projects', 'workflows', 'workspaces'];
-        if (saved && validTabs.includes(saved)) {
-          setActiveTab((prev) => (prev !== saved ? saved : prev));
-        }
-      } catch {}
-    };
-
-    let unsubscribeDesktop: (() => void) | undefined;
-    if (window.idlerDesktop?.onWindowShown) {
-      unsubscribeDesktop = window.idlerDesktop.onWindowShown(restoreSavedTab);
-    }
-
-    window.addEventListener('focus', restoreSavedTab);
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        restoreSavedTab();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-
-    return () => {
-      if (unsubscribeDesktop) unsubscribeDesktop();
-      window.removeEventListener('focus', restoreSavedTab);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, []);
-
   // Planner state
   const [prompt, setPrompt] = useState('');
   const [isPlanning, setIsPlanning] = useState(false);
@@ -186,44 +154,93 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   const [manualFolderPath, setManualFolderPath] = useState('');
   const [isRegisteringFolder, setIsRegisteringFolder] = useState(false);
 
-  // Active directory live files state
-  const [workspaceFileFilter, setWorkspaceFileFilter] = useState('');
-  const [internalFiles, setInternalFiles] = useState<WorkspaceFilePreview[]>([]);
-  const [isFetchingInternalFiles, setIsFetchingInternalFiles] = useState(false);
-
-  useEffect(() => {
-    if (!selectedWorkspace) return;
-    let cancelled = false;
-    setIsFetchingInternalFiles(true);
-    api.fetchWorkspaceFiles(selectedWorkspace)
-      .then((res) => {
-        if (!cancelled && res.files) {
-          setInternalFiles(res.files);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setInternalFiles([]);
-      })
-      .finally(() => {
-        if (!cancelled) setIsFetchingInternalFiles(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedWorkspace]);
-
   // Clean workspaces excluding any test workspaces
   const cleanWorkspaces = workspaces.filter(
     (w) => !w.path.toLowerCase().includes('test_workspace') && !w.name.toLowerCase().includes('test_workspace')
   );
 
-  const activeWsObj = cleanWorkspaces.find((w) => w.path === selectedWorkspace) || cleanWorkspaces[0];
+  const effectiveWorkspace = selectedWorkspace || (
+    cleanWorkspaces.find((w) => w.name.toLowerCase() === 'downloads')?.path || cleanWorkspaces[0]?.path || ''
+  );
+
+  const activeWsObj = cleanWorkspaces.find((w) => w.path === effectiveWorkspace) || cleanWorkspaces[0];
+
+  // Auto-synchronize active workspace if selectedWorkspace is empty
+  useEffect(() => {
+    if (!selectedWorkspace && effectiveWorkspace) {
+      onSelectWorkspace(effectiveWorkspace);
+    }
+  }, [selectedWorkspace, effectiveWorkspace, onSelectWorkspace]);
+
+  // Active directory live files state
+  const [workspaceFileFilter, setWorkspaceFileFilter] = useState('');
+  const [internalFiles, setInternalFiles] = useState<WorkspaceFilePreview[]>([]);
+  const [isFetchingInternalFiles, setIsFetchingInternalFiles] = useState(false);
+
+  const fetchFiles = useCallback((targetPath: string) => {
+    if (!targetPath) return;
+    setIsFetchingInternalFiles(true);
+    api.fetchWorkspaceFiles(targetPath)
+      .then((res) => {
+        if (res.files) {
+          setInternalFiles(res.files);
+        }
+      })
+      .catch(() => {
+        setInternalFiles([]);
+      })
+      .finally(() => {
+        setIsFetchingInternalFiles(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (effectiveWorkspace) {
+      fetchFiles(effectiveWorkspace);
+    }
+  }, [effectiveWorkspace, fetchFiles]);
+
+  // Maintain and restore active tab & refresh data whenever window is shown from macOS menu bar
+  useEffect(() => {
+    const handlePopoutWakeup = () => {
+      try {
+        const saved = localStorage.getItem('idler_active_cozy_tab') as CozyTab | null;
+        const validTabs: CozyTab[] = ['planner', 'ledger', 'duplicates', 'projects', 'workflows', 'workspaces'];
+        if (saved && validTabs.includes(saved)) {
+          setActiveTab((prev) => (prev !== saved ? saved : prev));
+        }
+      } catch {}
+      onRefreshWorkspaces();
+      onRefreshActions();
+      if (effectiveWorkspace) {
+        fetchFiles(effectiveWorkspace);
+      }
+    };
+
+    let unsubscribeDesktop: (() => void) | undefined;
+    if (window.idlerDesktop?.onWindowShown) {
+      unsubscribeDesktop = window.idlerDesktop.onWindowShown(handlePopoutWakeup);
+    }
+
+    window.addEventListener('focus', handlePopoutWakeup);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        handlePopoutWakeup();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      if (unsubscribeDesktop) unsubscribeDesktop();
+      window.removeEventListener('focus', handlePopoutWakeup);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [effectiveWorkspace, fetchFiles, onRefreshWorkspaces, onRefreshActions]);
 
   // Resolve files for active directory
-  const activeFilesList = (liveFiles && liveFiles.length > 0)
-    ? liveFiles
-    : (internalFiles.length > 0 ? internalFiles : (activeWsObj?.preview || []));
+  const activeFilesList = internalFiles.length > 0
+    ? internalFiles
+    : ((liveFiles && liveFiles.length > 0) ? liveFiles : (activeWsObj?.preview || []));
 
   const filteredActiveFiles = activeFilesList.filter((f) => {
     if (!workspaceFileFilter.trim()) return true;

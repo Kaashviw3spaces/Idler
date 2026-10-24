@@ -232,15 +232,31 @@ export default function App() {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
-  }, []);
 
-  useEffect(() => {
-    if (selectedWorkspace) {
-      try {
-        localStorage.setItem('idler_selected_workspace', selectedWorkspace);
-      } catch {}
-      loadLiveFiles(selectedWorkspace);
+    const handleWindowActive = () => {
+      refreshAll();
+      if (selectedWorkspace) {
+        loadLiveFiles(selectedWorkspace);
+      }
+    };
+
+    let unsubscribeDesktop: (() => void) | undefined;
+    if (window.idlerDesktop?.onWindowShown) {
+      unsubscribeDesktop = window.idlerDesktop.onWindowShown(handleWindowActive);
     }
+    window.addEventListener('focus', handleWindowActive);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        handleWindowActive();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      if (unsubscribeDesktop) unsubscribeDesktop();
+      window.removeEventListener('focus', handleWindowActive);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [selectedWorkspace]);
 
   async function refreshAll() {
