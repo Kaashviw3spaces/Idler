@@ -47,35 +47,47 @@ function getTrayIcon() {
 function getWindowPosition() {
   if (!mainWindow) return { x: 0, y: 0 };
   const windowBounds = mainWindow.getBounds();
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  let targetDisplay = screen.getPrimaryDisplay();
+  let trayBounds = null;
+
+  if (tray) {
+    try {
+      trayBounds = tray.getBounds();
+      if (trayBounds && (trayBounds.x > 0 || trayBounds.y > 0)) {
+        targetDisplay = screen.getDisplayNearestPoint({ x: trayBounds.x, y: trayBounds.y }) || targetDisplay;
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  if (!trayBounds || (trayBounds.x === 0 && trayBounds.y === 0)) {
+    const cursor = screen.getCursorScreenPoint();
+    targetDisplay = screen.getDisplayNearestPoint(cursor) || targetDisplay;
+  }
+
+  const { x: displayX, y: displayY, width: screenWidth, height: screenHeight } = targetDisplay.workArea;
 
   let x = 0;
   let y = 0;
 
-  if (tray) {
-    const trayBounds = tray.getBounds();
-    if (trayBounds && trayBounds.x > 0) {
-      x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
-      y = Math.round(trayBounds.y + trayBounds.height + 4);
-    } else {
-      // Default position: top right corner near macOS menu bar
-      x = screenWidth - windowBounds.width - 20;
-      y = 30;
-    }
+  if (trayBounds && (trayBounds.x > 0 || trayBounds.y > 0)) {
+    x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
+    y = Math.round(trayBounds.y + trayBounds.height + 4);
   } else {
-    x = screenWidth - windowBounds.width - 20;
-    y = 30;
+    x = displayX + screenWidth - windowBounds.width - 20;
+    y = displayY + 30;
   }
 
-  // Ensure window stays within visible screen area
-  if (x < 10) x = 10;
-  if (x + windowBounds.width > screenWidth - 10) {
-    x = screenWidth - windowBounds.width - 10;
+  // Ensure window stays within visible display work area
+  if (x < displayX + 10) x = displayX + 10;
+  if (x + windowBounds.width > displayX + screenWidth - 10) {
+    x = displayX + screenWidth - windowBounds.width - 10;
   }
-  if (y < 25) y = 25;
-  if (y + windowBounds.height > screenHeight - 10) {
-    y = screenHeight - windowBounds.height - 10;
+  if (y < displayY + 5) y = displayY + 5;
+  if (y + windowBounds.height > displayY + screenHeight - 10) {
+    y = displayY + screenHeight - windowBounds.height - 10;
   }
 
   return { x, y };
@@ -91,6 +103,9 @@ function showWindow() {
   const { x, y } = getWindowPosition();
   mainWindow.setPosition(x, y, false);
   lastWindowShowTime = Date.now();
+  // Ensure window floats over current space/desktop (Chrome, VS Code, etc.) without switching Spaces
+  mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  mainWindow.setAlwaysOnTop(true, 'status', 1);
   mainWindow.show();
   mainWindow.focus();
   if (mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
@@ -123,6 +138,7 @@ function createWindow() {
     fullscreenable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
+    hiddenInMissionControl: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -130,6 +146,10 @@ function createWindow() {
       backgroundThrottling: false,
     },
   });
+
+  // Enable floating across all macOS spaces/virtual desktops & over fullscreen apps like Chrome
+  mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  mainWindow.setAlwaysOnTop(true, 'status', 1);
 
   mainWindow.webContents.on('did-fail-load', (e, code, desc, url) => {
     console.error('Renderer failed to load:', code, desc, url);
@@ -152,11 +172,7 @@ function createWindow() {
   }
 
   mainWindow.once('ready-to-show', () => {
-    const { x, y } = getWindowPosition();
-    mainWindow.setPosition(x, y, false);
-    lastWindowShowTime = Date.now();
-    mainWindow.show();
-    mainWindow.focus();
+    showWindow();
   });
 
   // Auto-hide when user clicks outside the popover window (with a grace window on launch)
@@ -327,6 +343,9 @@ ipcMain.on('resize-height', (event, height) => {
 
 // App Lifecycle
 app.whenReady().then(() => {
+  if (app.dock) {
+    app.dock.hide();
+  }
   ensureBackend();
   createWindow();
   createTray();
