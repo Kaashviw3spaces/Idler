@@ -66,25 +66,111 @@ input, textarea, select {
   0% {
     opacity: 0;
     max-width: 0;
-    transform: translateX(-4px);
+    transform: translateX(-6px);
   }
   100% {
     opacity: 1;
-    max-width: 180px;
+    max-width: 190px;
     transform: translateX(0);
   }
 }
 
-@keyframes popoverTooltipIn {
+@keyframes tabContentIn {
   0% {
     opacity: 0;
-    transform: translate(-50%, 4px) scale(0.96);
+    transform: translateY(6px) scale(0.985);
   }
   100% {
     opacity: 1;
-    transform: translate(-50%, 0) scale(1);
+    transform: translateY(0) scale(1);
   }
 }
+
+@keyframes slothBreathingGlow {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes slothFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes bannerShimmer {
+  0%, 100% {
+    box-shadow: 0 4px 16px rgba(0, 122, 255, 0.35);
+  }
+  50% {
+    box-shadow: 0 6px 24px rgba(0, 122, 255, 0.55);
+  }
+}
+
+@keyframes accordionExpand {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cozy-chip {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.cozy-chip:hover {
+  transform: translateY(-1.5px) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+}
+
+.cozy-chip:active {
+  transform: scale(0.96) !important;
+}
+
+.cozy-action-btn {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.cozy-action-btn:hover {
+  transform: translateY(-1px) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+}
+
+.cozy-action-btn:active {
+  transform: scale(0.97) !important;
+}
+
+.quick-sort-btn {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.quick-sort-btn:hover {
+  transform: translateY(-1px) scale(1.03) !important;
+  box-shadow: 0 4px 14px rgba(255, 255, 255, 0.4) !important;
+}
+
+.quick-sort-btn:active {
+  transform: scale(0.96) !important;
+}
+
 
 ::-webkit-scrollbar-track {
   background: var(--bg-primary);

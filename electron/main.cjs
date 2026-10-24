@@ -281,6 +281,20 @@ ipcMain.handle('open-studio', () => {
   shell.openExternal('http://localhost:5173');
 });
 
+ipcMain.on('resize-height', (event, height) => {
+  if (!mainWindow) return;
+  const clampedHeight = Math.max(280, Math.min(Math.round(height), 780));
+  const currentBounds = mainWindow.getBounds();
+  if (Math.abs(currentBounds.height - clampedHeight) > 3) {
+    mainWindow.setBounds({
+      x: currentBounds.x,
+      y: currentBounds.y,
+      width: POPOVER_WIDTH,
+      height: clampedHeight,
+    }, true);
+  }
+});
+
 // App Lifecycle
 app.whenReady().then(() => {
   ensureBackend();

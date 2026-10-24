@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Sparkles,
   History,
@@ -12,7 +12,6 @@ import {
   RotateCcw,
   Trash2,
   Play,
-  ChevronDown,
   ChevronRight,
 } from 'lucide-react';
 import {
@@ -69,6 +68,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   onQuit,
   addToast,
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<CozyTab>('planner');
   const [hoveredTab, setHoveredTab] = useState<CozyTab | null>(null);
 
@@ -95,7 +95,22 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
 
   const activeWsObj = workspaces.find((w) => w.path === selectedWorkspace) || workspaces[0];
 
-  // 8 Minimalist Chips in 2x4 grid (matching screenshot layout)
+  // Dynamic window resizing based on content height
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const height = Math.ceil(entry.contentRect.height + 28);
+        if (window.idlerDesktop?.resizeHeight) {
+          window.idlerDesktop.resizeHeight(height);
+        }
+      }
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // 8 Minimalist Chips in 2x4 Grid
   const chipsRow1 = [
     { label: 'Downloads', query: 'Organize files in Downloads folder by category' },
     { label: 'Sort Images', query: 'Move all images into Images subfolder' },
@@ -283,25 +298,28 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
 
   return (
     <div
+      ref={containerRef}
       style={{
         width: '100%',
         maxWidth: '380px',
         margin: '0 auto',
-        background: 'rgba(28, 25, 32, 0.96)',
-        backdropFilter: 'blur(40px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
-        borderRadius: '22px',
-        boxShadow: '0 24px 60px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(0,0,0,0.5)',
-        padding: '14px',
+        // ONE Single Tinted Transparent Glass Container
+        background: 'rgba(23, 20, 28, 0.82)',
+        backdropFilter: 'blur(50px) saturate(200%)',
+        WebkitBackdropFilter: 'blur(50px) saturate(200%)',
+        border: '1px solid rgba(255, 255, 255, 0.14)',
+        borderRadius: '24px',
+        boxShadow: '0 24px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+        padding: '16px',
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
         color: '#f8fafc',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
         position: 'relative',
         userSelect: 'none',
         boxSizing: 'border-box',
+        transition: 'height 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
       {/* Top Anchor Notch pointing to menu bar */}
@@ -313,23 +331,26 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
           transform: 'translateX(-50%) rotate(45deg)',
           width: '12px',
           height: '12px',
-          background: '#1c1920',
-          borderTop: '1px solid rgba(255, 255, 255, 0.15)',
-          borderLeft: '1px solid rgba(255, 255, 255, 0.15)',
+          background: 'rgba(23, 20, 28, 0.95)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.16)',
+          borderLeft: '1px solid rgba(255, 255, 255, 0.16)',
           zIndex: 2,
         }}
       />
 
-      {/* Top Status Banner Card with Quick Sort Button */}
+      {/* 1. Top Status Banner Card with Quick Sort Button */}
       <div
         style={{
-          background: 'linear-gradient(135deg, #007aff 0%, #0060df 100%)',
-          borderRadius: '14px',
+          background: 'linear-gradient(135deg, rgba(0, 122, 255, 0.92) 0%, rgba(0, 96, 223, 0.92) 100%)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.25)',
+          borderRadius: '16px',
           padding: '10px 14px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          boxShadow: '0 4px 14px rgba(0, 122, 255, 0.35)',
+          animation: 'bannerShimmer 4s ease-in-out infinite',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -351,13 +372,14 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             <div style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff', lineHeight: 1.2 }}>
               Idler Local AI
             </div>
-            <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.85)', marginTop: '2px' }}>
+            <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.88)', marginTop: '2px' }}>
               {activeWsObj ? `${activeWsObj.name} • ${activeWsObj.files_count} files` : 'Ready to organize'}
             </div>
           </div>
         </div>
 
         <button
+          className="quick-sort-btn"
           onClick={() => {
             setActiveTab('planner');
             handleRunPrompt('Organize all unorganized files by category');
@@ -372,22 +394,21 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             fontSize: '12px',
             fontWeight: '700',
             cursor: 'pointer',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-            transition: 'all 0.15s ease',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
           }}
         >
           {isPlanning ? 'Thinking…' : 'Quick Sort'}
         </button>
       </div>
 
-      {/* 1. Center Hero Mascot: Pure White & Cool Sloth (No Background) */}
+      {/* 2. Center Hero Mascot: Pure White & Cool Sloth with Ambient Breathing Glow */}
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '6px 0 2px 0',
+          padding: '4px 0 0px 0',
         }}
       >
         <div
@@ -396,17 +417,19 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            animation: 'slothFloat 3s ease-in-out infinite',
           }}
         >
-          {/* Subtle Soft Ambient Glow */}
+          {/* Ambient Breathing Glow */}
           <div
             style={{
               position: 'absolute',
-              width: '54px',
-              height: '54px',
+              width: '56px',
+              height: '56px',
               borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(255, 255, 255, 0.22) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%)',
               pointerEvents: 'none',
+              animation: 'slothBreathingGlow 2.5s ease-in-out infinite',
             }}
           />
           <img
@@ -416,7 +439,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               width: '46px',
               height: '46px',
               objectFit: 'contain',
-              filter: 'drop-shadow(0 2px 8px rgba(255, 255, 255, 0.4)) drop-shadow(0 4px 14px rgba(0, 0, 0, 0.7))',
+              filter: 'drop-shadow(0 2px 10px rgba(255, 255, 255, 0.45)) drop-shadow(0 4px 16px rgba(0, 0, 0, 0.8))',
+              transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
             onError={(e) => {
               (e.currentTarget as HTMLElement).style.display = 'none';
@@ -425,13 +449,13 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         </div>
       </div>
 
-      {/* 2. Segmented Icon Tab Bar with Hover Labels */}
+      {/* 3. Segmented Icon Tab Bar with Enhanced Animations */}
       <div
         onMouseLeave={() => setHoveredTab(null)}
         style={{
-          background: '#252229',
+          background: 'rgba(255, 255, 255, 0.06)',
           border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: '12px',
+          borderRadius: '14px',
           padding: '4px',
           display: 'flex',
           alignItems: 'center',
@@ -448,28 +472,37 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               onMouseEnter={() => setHoveredTab(tab.id)}
-              title={tab.label}
               style={{
                 flex: isHovered ? '1 1 auto' : hoveredTab ? '0 0 32px' : '1 1 0px',
                 minWidth: '32px',
                 maxWidth: isHovered ? '210px' : undefined,
                 height: '32px',
                 padding: isHovered ? '0 10px' : '0 6px',
-                background: isActive ? '#2563eb' : isHovered ? 'rgba(255, 255, 255, 0.09)' : 'transparent',
+                background: isActive ? '#2563eb' : isHovered ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                boxShadow: isActive ? '0 4px 14px rgba(37, 99, 235, 0.45)' : undefined,
                 border: 'none',
-                borderRadius: '8px',
+                borderRadius: '10px',
                 color: isActive ? '#ffffff' : isHovered ? '#ffffff' : '#8e8c95',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
-                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                transition: 'all 0.24s cubic-bezier(0.16, 1, 0.3, 1)',
                 overflow: 'hidden',
                 whiteSpace: 'nowrap',
                 position: 'relative',
               }}
             >
-              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  transform: isHovered ? 'scale(1.08)' : 'scale(1)',
+                  transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+              >
                 {tab.icon}
               </span>
 
@@ -484,7 +517,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    animation: 'popoverTextIn 0.18s ease-out forwards',
+                    animation: 'popoverTextIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards',
                   }}
                 >
                   {tab.label}
@@ -495,7 +528,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         })}
       </div>
 
-      {/* 3. Section Label (Matching Screenshot "KEEP AWAKE") */}
+      {/* 4. Section Label */}
       <div
         style={{
           fontSize: '11px',
@@ -510,24 +543,21 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         {getSectionLabel(effectiveTab)}
       </div>
 
-      {/* 4. THE BOX (Unified Minimalist Card matching the screenshot) */}
+      {/* 5. CONTENT AREA: Clean, Direct Layout Inside the Single Tinted Box */}
       <div
+        key={activeTab}
         style={{
-          background: '#252229',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: '16px',
-          padding: '14px 16px',
           display: 'flex',
           flexDirection: 'column',
           gap: '12px',
-          boxSizing: 'border-box',
+          animation: 'tabContentIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) ease-out',
         }}
       >
-        {/* TAB 1: SCAN & PLAN (Default View) */}
+        {/* TAB 1: SCAN & PLAN */}
         {activeTab === 'planner' && (
           <>
-            {/* Row 1: The Mac follows its normal energy rules / Auto-sort */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Row 1: Auto-sort files by category with Spring iOS Toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
               <span style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: '500' }}>
                 Auto-sort files by category
               </span>
@@ -537,10 +567,10 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   width: '42px',
                   height: '24px',
                   borderRadius: '12px',
-                  background: autoSortEnabled ? '#e2e8f0' : '#38353d',
+                  background: autoSortEnabled ? '#e2e8f0' : 'rgba(255, 255, 255, 0.14)',
                   position: 'relative',
                   cursor: 'pointer',
-                  transition: 'background 0.2s',
+                  transition: 'background 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
                   flexShrink: 0,
                 }}
               >
@@ -553,13 +583,14 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                     height: '20px',
                     borderRadius: '50%',
                     background: autoSortEnabled ? '#0f172a' : '#8e8c95',
-                    transition: 'left 0.2s',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                    transition: 'left 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
                   }}
                 />
               </div>
             </div>
 
-            {/* Row 2: 8 Chips in 2x4 Grid (Matching Screenshot Chips Layout) */}
+            {/* Row 2: 8 Chips in 2x4 Grid with Tactile Spring Micro-interactions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
                 {chipsRow1.map((chip) => {
@@ -567,6 +598,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   return (
                     <button
                       key={chip.label}
+                      className="cozy-chip"
                       onClick={() => {
                         setActiveChip(chip.label);
                         if (chip.action === 'duplicates') {
@@ -578,10 +610,11 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                         }
                       }}
                       style={{
-                        background: isSel ? '#2563eb' : '#312e36',
-                        border: '1px solid ' + (isSel ? '#3b82f6' : 'rgba(255, 255, 255, 0.06)'),
-                        borderRadius: '8px',
-                        padding: '7px 2px',
+                        background: isSel ? '#2563eb' : 'rgba(255, 255, 255, 0.07)',
+                        border: '1px solid ' + (isSel ? '#3b82f6' : 'rgba(255, 255, 255, 0.1)'),
+                        boxShadow: isSel ? '0 4px 12px rgba(37, 99, 235, 0.4)' : undefined,
+                        borderRadius: '9px',
+                        padding: '8px 2px',
                         fontSize: '11px',
                         fontWeight: '500',
                         color: isSel ? '#ffffff' : '#e2e8f0',
@@ -590,7 +623,6 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
-                        transition: 'all 0.15s ease',
                       }}
                     >
                       {chip.label}
@@ -605,6 +637,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   return (
                     <button
                       key={chip.label}
+                      className="cozy-chip"
                       onClick={() => {
                         setActiveChip(chip.label);
                         if (chip.action === 'custom') {
@@ -615,10 +648,11 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                         }
                       }}
                       style={{
-                        background: isSel ? '#2563eb' : '#312e36',
-                        border: '1px solid ' + (isSel ? '#3b82f6' : 'rgba(255, 255, 255, 0.06)'),
-                        borderRadius: '8px',
-                        padding: '7px 2px',
+                        background: isSel ? '#2563eb' : 'rgba(255, 255, 255, 0.07)',
+                        border: '1px solid ' + (isSel ? '#3b82f6' : 'rgba(255, 255, 255, 0.1)'),
+                        boxShadow: isSel ? '0 4px 12px rgba(37, 99, 235, 0.4)' : undefined,
+                        borderRadius: '9px',
+                        padding: '8px 2px',
                         fontSize: '11px',
                         fontWeight: '500',
                         color: isSel ? '#ffffff' : '#e2e8f0',
@@ -627,7 +661,6 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
-                        transition: 'all 0.15s ease',
                       }}
                     >
                       {chip.label}
@@ -637,13 +670,13 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               </div>
             </div>
 
-            {/* Row 3: Caption Text (Matching Screenshot) */}
-            <div style={{ fontSize: '11px', color: '#8a8790' }}>
-              Click a chip to start. Click it again to stop
+            {/* Caption */}
+            <div style={{ fontSize: '11px', color: '#8a8790', paddingLeft: '2px' }}>
+              Click a chip to start. Natural language assistant below.
             </div>
 
-            {/* Row 4: Expandable Accordion (Matching Screenshot "> Options") */}
-            <div>
+            {/* Row 4: Expandable Options Accordion */}
+            <div style={{ background: 'rgba(255, 255, 255, 0.04)', borderRadius: '12px', padding: '8px 10px' }}>
               <button
                 onClick={() => setOptionsExpanded(!optionsExpanded)}
                 style={{
@@ -652,25 +685,28 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   padding: 0,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
+                  gap: '6px',
                   color: '#cbd5e1',
                   fontSize: '12px',
                   fontWeight: '600',
                   cursor: 'pointer',
+                  width: '100%',
                 }}
               >
-                {optionsExpanded ? <ChevronDown size={14} color="#94a3b8" /> : <ChevronRight size={14} color="#94a3b8" />}
+                <span style={{ transform: optionsExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease', display: 'flex' }}>
+                  <ChevronRight size={14} color="#94a3b8" />
+                </span>
                 <span>Options & Natural Language</span>
               </button>
 
               {optionsExpanded && (
-                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px', animation: 'accordionExpand 0.2s ease-out' }}>
                   <div
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      background: '#1a181e',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
                       borderRadius: '8px',
                       padding: '5px 8px',
                       gap: '6px',
@@ -695,7 +731,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                       onClick={() => handleRunPrompt()}
                       disabled={isPlanning || !prompt.trim()}
                       style={{
-                        background: prompt.trim() ? '#2563eb' : '#312e36',
+                        background: prompt.trim() ? '#2563eb' : 'rgba(255, 255, 255, 0.1)',
                         color: '#ffffff',
                         border: 'none',
                         borderRadius: '6px',
@@ -705,6 +741,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: prompt.trim() ? 'pointer' : 'default',
+                        transition: 'all 0.15s ease',
                       }}
                     >
                       <ArrowRight size={12} />
@@ -714,8 +751,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   {currentPlan && (
                     <div
                       style={{
-                        background: '#16141a',
-                        border: '1px solid #2563eb',
+                        background: 'rgba(37, 99, 235, 0.12)',
+                        border: '1px solid rgba(37, 99, 235, 0.4)',
                         borderRadius: '8px',
                         padding: '8px',
                         display: 'flex',
@@ -752,7 +789,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                         <button
                           onClick={() => setCurrentPlan(null)}
                           style={{
-                            background: '#312e36',
+                            background: 'rgba(255, 255, 255, 0.1)',
                             color: '#cbd5e1',
                             border: 'none',
                             padding: '5px 8px',
@@ -778,11 +815,12 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                           padding: '4px 0',
                           fontSize: '10px',
                           fontWeight: '500',
-                          background: soundMode === mode ? '#2563eb' : '#1a181e',
+                          background: soundMode === mode ? '#2563eb' : 'rgba(255, 255, 255, 0.06)',
                           color: soundMode === mode ? '#ffffff' : '#8a8790',
                           border: '1px solid rgba(255, 255, 255, 0.08)',
                           borderRadius: '6px',
                           cursor: 'pointer',
+                          transition: 'all 0.15s ease',
                         }}
                       >
                         {mode === 'auto' ? 'Auto OS' : mode === 'mac' ? 'Mac Glass' : 'Win Triad'}
@@ -793,11 +831,11 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               )}
             </div>
 
-            {/* Divider Line (Matching Screenshot) */}
-            <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', margin: '2px 0' }} />
+            {/* Divider Line */}
+            <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', margin: '2px 0' }} />
 
-            {/* Row 5: Keep going with the lid closed / Audible Chime (Matching Screenshot) */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Row 5: Audible completion chime */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
               <div>
                 <div style={{ fontSize: '13px', fontWeight: '500', color: '#f1f5f9' }}>
                   Audible completion chime
@@ -813,10 +851,10 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   width: '42px',
                   height: '24px',
                   borderRadius: '12px',
-                  background: soundMuted ? '#38353d' : '#e2e8f0',
+                  background: soundMuted ? 'rgba(255, 255, 255, 0.14)' : '#e2e8f0',
                   position: 'relative',
                   cursor: 'pointer',
-                  transition: 'background 0.2s',
+                  transition: 'background 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
                   flexShrink: 0,
                 }}
               >
@@ -829,7 +867,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                     height: '20px',
                     borderRadius: '50%',
                     background: soundMuted ? '#8e8c95' : '#0f172a',
-                    transition: 'left 0.2s',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                    transition: 'left 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
                   }}
                 />
               </div>
@@ -840,7 +879,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         {/* TAB 2: ACTION LEDGER & UNDO */}
         {activeTab === 'ledger' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ fontSize: '12px', color: '#cbd5e1', display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: '12px', color: '#cbd5e1', display: 'flex', justifyContent: 'space-between', padding: '0 2px' }}>
               <span>Recent File Actions</span>
               <span style={{ color: '#8a8790' }}>{actions.length} operations</span>
             </div>
@@ -849,18 +888,19 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                 No operations logged yet.
               </div>
             ) : (
-              <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ maxHeight: '190px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {actions.slice(0, 5).map((act) => (
                   <div
                     key={act.id}
                     style={{
-                      background: '#312e36',
-                      border: '1px solid rgba(255, 255, 255, 0.06)',
-                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: '10px',
                       padding: '8px 10px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
+                      transition: 'background 0.15s ease',
                     }}
                   >
                     <div style={{ overflow: 'hidden', paddingRight: '8px' }}>
@@ -874,11 +914,12 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                     {!act.is_undone ? (
                       <button
                         onClick={() => handleUndo(act.id)}
+                        className="cozy-action-btn"
                         style={{
-                          background: '#252229',
+                          background: 'rgba(37, 99, 235, 0.2)',
                           color: '#93c5fd',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
-                          borderRadius: '4px',
+                          border: '1px solid rgba(37, 99, 235, 0.4)',
+                          borderRadius: '6px',
                           padding: '4px 8px',
                           fontSize: '10px',
                           fontWeight: '600',
@@ -903,7 +944,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         {/* TAB 3: DUPLICATE FINDER */}
         {activeTab === 'duplicates' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 2px' }}>
               <span style={{ fontSize: '12px', color: '#cbd5e1' }}>
                 {dupScan
                   ? `${dupScan.duplicate_groups.length} duplicate groups (${fmtBytes(dupScan.total_wasted_bytes)} wasted)`
@@ -912,11 +953,12 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               <button
                 onClick={handleScanDuplicates}
                 disabled={isScanningDups}
+                className="cozy-action-btn"
                 style={{
                   background: '#2563eb',
                   color: '#ffffff',
                   border: 'none',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   padding: '5px 10px',
                   fontSize: '11px',
                   fontWeight: '600',
@@ -930,12 +972,13 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             {dupScan && dupScan.duplicate_groups.length > 0 && (
               <button
                 onClick={handleTrashAllDuplicates}
+                className="cozy-action-btn"
                 style={{
                   background: '#dc2626',
                   color: '#ffffff',
                   border: 'none',
-                  borderRadius: '8px',
-                  padding: '8px',
+                  borderRadius: '10px',
+                  padding: '9px',
                   fontSize: '12px',
                   fontWeight: '700',
                   cursor: 'pointer',
@@ -943,6 +986,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '6px',
+                  boxShadow: '0 4px 14px rgba(220, 38, 38, 0.35)',
                 }}
               >
                 <Trash2 size={13} />
@@ -961,7 +1005,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         {/* TAB 4: PROJECT INSPECTOR */}
         {activeTab === 'projects' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ fontSize: '12px', color: '#cbd5e1' }}>
+            <div style={{ fontSize: '12px', color: '#cbd5e1', padding: '0 2px' }}>
               Inspect repo manifests & structure:
             </div>
             <div style={{ display: 'flex', gap: '6px' }}>
@@ -972,8 +1016,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                 placeholder="Relative path (e.g. .)"
                 style={{
                   flex: 1,
-                  background: '#1a181e',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  background: 'rgba(0, 0, 0, 0.25)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
                   borderRadius: '8px',
                   padding: '6px 8px',
                   fontSize: '11px',
@@ -983,6 +1027,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               <button
                 onClick={handleInspectProject}
                 disabled={isInspectingProj}
+                className="cozy-action-btn"
                 style={{
                   background: '#2563eb',
                   color: '#ffffff',
@@ -1005,9 +1050,9 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             {projResult && (
               <div
                 style={{
-                  background: '#1a181e',
+                  background: 'rgba(255, 255, 255, 0.05)',
                   border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: '8px',
+                  borderRadius: '10px',
                   padding: '10px',
                   display: 'flex',
                   flexDirection: 'column',
@@ -1039,7 +1084,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         {/* TAB 5: SAVED WORKFLOWS */}
         {activeTab === 'workflows' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ fontSize: '12px', color: '#cbd5e1', display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: '12px', color: '#cbd5e1', display: 'flex', justifyContent: 'space-between', padding: '0 2px' }}>
               <span>Recurring Workflows</span>
               <span style={{ color: '#8a8790' }}>{workflows.length} configured</span>
             </div>
@@ -1049,14 +1094,14 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                 No saved workflows yet.
               </div>
             ) : (
-              <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ maxHeight: '190px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {workflows.map((wf) => (
                   <div
                     key={wf.id}
                     style={{
-                      background: '#312e36',
-                      border: '1px solid rgba(255, 255, 255, 0.06)',
-                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: '10px',
                       padding: '8px 10px',
                       display: 'flex',
                       alignItems: 'center',
@@ -1076,11 +1121,12 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                       <button
                         onClick={() => handleRunWorkflow(wf)}
                         disabled={runningWfId === wf.id}
+                        className="cozy-action-btn"
                         style={{
                           background: '#2563eb',
                           color: '#ffffff',
                           border: 'none',
-                          borderRadius: '4px',
+                          borderRadius: '6px',
                           padding: '4px 6px',
                           cursor: 'pointer',
                         }}
@@ -1093,10 +1139,10 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                           width: '28px',
                           height: '16px',
                           borderRadius: '8px',
-                          background: wf.is_active ? '#10b981' : '#38353d',
+                          background: wf.is_active ? '#10b981' : 'rgba(255, 255, 255, 0.16)',
                           position: 'relative',
                           cursor: 'pointer',
-                          transition: 'background 0.2s',
+                          transition: 'background 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
                         }}
                       >
                         <div
@@ -1108,7 +1154,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                             height: '12px',
                             borderRadius: '50%',
                             background: '#ffffff',
-                            transition: 'left 0.2s',
+                            transition: 'left 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
                           }}
                         />
                       </div>
@@ -1123,20 +1169,22 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         {/* TAB 6: WORKSPACES */}
         {activeTab === 'workspaces' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ fontSize: '12px', color: '#cbd5e1' }}>
+            <div style={{ fontSize: '12px', color: '#cbd5e1', padding: '0 2px' }}>
               Switch active local directory:
             </div>
-            <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ maxHeight: '190px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {workspaces.map((ws) => {
                 const isSel = ws.path === selectedWorkspace;
                 return (
                   <button
                     key={ws.path}
                     onClick={() => onSelectWorkspace(ws.path)}
+                    className="cozy-chip"
                     style={{
-                      background: isSel ? '#2563eb' : '#312e36',
-                      border: '1px solid ' + (isSel ? '#3b82f6' : 'rgba(255, 255, 255, 0.06)'),
-                      borderRadius: '8px',
+                      background: isSel ? '#2563eb' : 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid ' + (isSel ? '#3b82f6' : 'rgba(255, 255, 255, 0.08)'),
+                      boxShadow: isSel ? '0 4px 12px rgba(37, 99, 235, 0.4)' : undefined,
+                      borderRadius: '10px',
                       padding: '8px 10px',
                       color: isSel ? '#ffffff' : '#cbd5e1',
                       fontSize: '12px',
@@ -1157,16 +1205,17 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         )}
       </div>
 
-      {/* 5. Bottom Action Footer: Settings & Quit Buttons (Matching Screenshot) */}
+      {/* 6. Bottom Action Footer: Settings & Quit Buttons */}
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           gap: '8px',
-          marginTop: '2px',
+          marginTop: '4px',
         }}
       >
         <button
+          className="cozy-action-btn"
           onClick={() => {
             if (onOpenStudio) {
               onOpenStudio();
@@ -1177,7 +1226,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             }
           }}
           style={{
-            background: '#252229',
+            background: 'rgba(255, 255, 255, 0.06)',
             border: '1px solid rgba(255, 255, 255, 0.08)',
             borderRadius: '12px',
             padding: '10px 14px',
@@ -1189,7 +1238,6 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             justifyContent: 'center',
             gap: '8px',
             cursor: 'pointer',
-            transition: 'background 0.15s ease',
           }}
         >
           <Settings size={15} color="#8a8790" />
@@ -1197,6 +1245,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         </button>
 
         <button
+          className="cozy-action-btn"
           onClick={() => {
             if (onQuit) {
               onQuit();
@@ -1207,7 +1256,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             }
           }}
           style={{
-            background: '#252229',
+            background: 'rgba(255, 255, 255, 0.06)',
             border: '1px solid rgba(255, 255, 255, 0.08)',
             borderRadius: '12px',
             padding: '10px 14px',
@@ -1219,7 +1268,6 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             justifyContent: 'center',
             gap: '8px',
             cursor: 'pointer',
-            transition: 'background 0.15s ease',
           }}
         >
           <Power size={15} color="#8a8790" />

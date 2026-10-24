@@ -153,6 +153,7 @@ declare global {
       openExternal: (url: string) => Promise<void>;
       quitApp: () => Promise<void>;
       openStudio: () => Promise<void>;
+      resizeHeight?: (height: number) => void;
     };
   }
 }
