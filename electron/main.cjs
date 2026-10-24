@@ -1,7 +1,7 @@
 // Ensure Electron does not inherit node CLI mode from parent shell
 delete process.env.ELECTRON_RUN_AS_NODE;
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, shell, Notification, nativeImage, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, Notification, nativeImage, screen, dialog } = require('electron');
 const path = require('path');
 const { spawn, exec } = require('child_process');
 const http = require('http');
@@ -9,6 +9,7 @@ const http = require('http');
 let tray = null;
 let mainWindow = null;
 let backendProcess = null;
+let isDialogOpen = false;
 
 const POPOVER_WIDTH = 380;
 const POPOVER_HEIGHT = 610;
@@ -140,7 +141,9 @@ function createWindow() {
     mainWindow.loadFile(bundledUiPath);
   } else {
     mainWindow.loadURL('http://localhost:5173').catch(() => {
-      mainWindow.loadFile(bundledUiPath);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.loadFile(bundledUiPath);
+      }
     });
   }
 
@@ -154,6 +157,7 @@ function createWindow() {
 
   // Auto-hide when user clicks outside the popover window (with a grace window on launch)
   mainWindow.on('blur', () => {
+    if (isDialogOpen) return;
     if (Date.now() - lastWindowShowTime < 1500) {
       return;
     }
@@ -278,6 +282,29 @@ ipcMain.handle('quit-app', () => {
 
 ipcMain.handle('open-studio', () => {
   shell.openExternal('http://localhost:5173');
+});
+
+ipcMain.handle('select-folder', async () => {
+  if (!mainWindow) return null;
+  isDialogOpen = true;
+  try {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Select Active Folder to Scan on Computer',
+      buttonLabel: 'Select Folder',
+    });
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return null;
+    }
+    return result.filePaths[0];
+  } finally {
+    isDialogOpen = false;
+    lastWindowShowTime = Date.now();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  }
 });
 
 ipcMain.on('resize-height', (event, height) => {

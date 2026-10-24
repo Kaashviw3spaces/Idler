@@ -6,6 +6,7 @@ import {
   Code2,
   FolderSync,
   FolderOpen,
+  FolderPlus,
   ArrowRight,
   Settings,
   Power,
@@ -13,6 +14,7 @@ import {
   Trash2,
   Play,
   ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
 import {
   PlanResponse,
@@ -93,6 +95,11 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   // Workflow running state
   const [runningWfId, setRunningWfId] = useState<string | null>(null);
 
+  // Active folder / workspace addition state
+  const [isAddingManualFolder, setIsAddingManualFolder] = useState(false);
+  const [manualFolderPath, setManualFolderPath] = useState('');
+  const [isRegisteringFolder, setIsRegisteringFolder] = useState(false);
+
   const activeWsObj = workspaces.find((w) => w.path === selectedWorkspace) || workspaces[0];
 
   // Dynamic window resizing based on content height
@@ -113,7 +120,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     });
     ro.observe(containerRef.current);
     return () => ro.disconnect();
-  }, [activeTab, optionsExpanded, actions.length, workflows.length]);
+  }, [activeTab, optionsExpanded, actions.length, workflows.length, workspaces.length, isAddingManualFolder]);
 
   // 8 Minimalist Chips in 2x4 Grid
   const chipsRow1 = [
@@ -282,6 +289,57 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     }
   }
 
+  async function handleSelectAndAddFolder() {
+    if (window.idlerDesktop?.selectFolder) {
+      try {
+        const chosenPath = await window.idlerDesktop.selectFolder();
+        if (!chosenPath) return;
+        await handleRegisterNewFolder(chosenPath);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        addToast('error', `Failed to open folder picker: ${msg}`);
+      }
+    } else {
+      setIsAddingManualFolder(true);
+    }
+  }
+
+  async function handleRegisterNewFolder(pathToAdd: string) {
+    const cleanPath = pathToAdd.trim();
+    if (!cleanPath) return;
+    setIsRegisteringFolder(true);
+    try {
+      const folderName = cleanPath.split('/').filter(Boolean).pop() || cleanPath;
+      await api.registerWorkspace(cleanPath, folderName);
+      await onRefreshWorkspaces();
+      onSelectWorkspace(cleanPath);
+      setManualFolderPath('');
+      setIsAddingManualFolder(false);
+      addToast('success', `Active folder set to: ${folderName}`);
+      playTaskCompleteChime(soundMode);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', `Could not add folder: ${msg}`);
+    } finally {
+      setIsRegisteringFolder(false);
+    }
+  }
+
+  async function handleRemoveWorkspace(wsPath: string, wsName: string) {
+    try {
+      await api.deleteWorkspace(wsPath);
+      await onRefreshWorkspaces();
+      if (selectedWorkspace === wsPath && workspaces.length > 0) {
+        const fallback = workspaces.find((w) => w.path !== wsPath);
+        if (fallback) onSelectWorkspace(fallback.path);
+      }
+      addToast('info', `Removed folder: ${wsName}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast('error', `Failed to remove folder: ${msg}`);
+    }
+  }
+
   const effectiveTab = hoveredTab || activeTab;
 
   function getSectionLabel(t: CozyTab): string {
@@ -377,8 +435,22 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             <div style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff', lineHeight: 1.2 }}>
               Idler Local AI
             </div>
-            <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.88)', marginTop: '2px' }}>
-              {activeWsObj ? `${activeWsObj.name} • ${activeWsObj.files_count} files` : 'Ready to organize'}
+            <div
+              onClick={() => setActiveTab('workspaces')}
+              title="Click to change or add active folder to scan"
+              style={{
+                fontSize: '11px',
+                color: 'rgba(255, 255, 255, 0.92)',
+                marginTop: '2px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px',
+                textDecoration: 'underline dotted rgba(255,255,255,0.4)',
+              }}
+            >
+              <span>{activeWsObj ? `${activeWsObj.name} • ${activeWsObj.files_count} files` : 'Ready to organize'}</span>
+              <ChevronRight size={10} style={{ opacity: 0.85 }} />
             </div>
           </div>
         </div>
@@ -561,6 +633,153 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         {/* TAB 1: SCAN & PLAN */}
         {activeTab === 'planner' && (
           <>
+            {/* Active Folder to Scan on Computer */}
+            <div
+              style={{
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '12px',
+                padding: '9px 10px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '7px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <FolderOpen size={13} color="#3b82f6" />
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                    Active Folder to Scan on Computer
+                  </span>
+                </div>
+                <button
+                  onClick={handleSelectAndAddFolder}
+                  title="Add folder from computer"
+                  className="cozy-action-btn"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: 'rgba(37, 99, 235, 0.22)',
+                    border: '1px solid rgba(59, 130, 246, 0.4)',
+                    borderRadius: '6px',
+                    padding: '2px 8px',
+                    color: '#60a5fa',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <FolderPlus size={12} />
+                  <span>+ Add Folder</span>
+                </button>
+              </div>
+
+              {/* Folder Selector Dropdown */}
+              <div style={{ position: 'relative' }}>
+                <select
+                  value={selectedWorkspace}
+                  onChange={(e) => {
+                    if (e.target.value === '__add_new__') {
+                      handleSelectAndAddFolder();
+                    } else {
+                      onSelectWorkspace(e.target.value);
+                      const found = workspaces.find((w) => w.path === e.target.value);
+                      addToast('info', `Active folder: ${found?.name || e.target.value}`);
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(15, 23, 42, 0.75)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '8px',
+                    padding: '6px 28px 6px 10px',
+                    color: '#f8fafc',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    textOverflow: 'ellipsis',
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {workspaces.map((ws) => (
+                    <option key={ws.path} value={ws.path} style={{ background: '#18151e', color: '#f8fafc' }}>
+                      {ws.name} ({ws.files_count} files) — {ws.path}
+                    </option>
+                  ))}
+                  <option value="__add_new__" style={{ background: '#18151e', color: '#60a5fa' }}>
+                    ➕ Browse computer for new folder…
+                  </option>
+                </select>
+                <ChevronDown
+                  size={13}
+                  color="#94a3b8"
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+                />
+              </div>
+
+              {/* Inline manual path entry fallback */}
+              {isAddingManualFolder && (
+                <div style={{ display: 'flex', gap: '6px', marginTop: '2px', animation: 'accordionExpand 0.2s ease-out' }}>
+                  <input
+                    type="text"
+                    placeholder="/path/to/folder or ~/Documents"
+                    value={manualFolderPath}
+                    onChange={(e) => setManualFolderPath(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRegisterNewFolder(manualFolderPath);
+                      if (e.key === 'Escape') setIsAddingManualFolder(false);
+                    }}
+                    autoFocus
+                    style={{
+                      flex: 1,
+                      background: 'rgba(0, 0, 0, 0.45)',
+                      border: '1px solid rgba(255, 255, 255, 0.16)',
+                      borderRadius: '6px',
+                      padding: '5px 8px',
+                      fontSize: '11px',
+                      color: '#ffffff',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    onClick={() => handleRegisterNewFolder(manualFolderPath)}
+                    disabled={isRegisteringFolder || !manualFolderPath.trim()}
+                    style={{
+                      background: '#2563eb',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '5px 10px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {isRegisteringFolder ? 'Adding…' : 'Add'}
+                  </button>
+                  <button
+                    onClick={() => setIsAddingManualFolder(false)}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '6px',
+                      padding: '5px 8px',
+                      fontSize: '11px',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Row 1: Auto-sort files by category with Spring iOS Toggle */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
               <span style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: '500' }}>
@@ -1173,36 +1392,213 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
 
         {/* TAB 6: WORKSPACES */}
         {activeTab === 'workspaces' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ fontSize: '12px', color: '#cbd5e1', padding: '0 2px' }}>
-              Switch active local directory:
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+            {/* Header: Active Folder to Scan on Computer + Add Folder Button */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: '#f8fafc' }}>
+                  Active Folder to Scan on Computer
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  {workspaces.length} folders registered • Select one to scan
+                </div>
+              </div>
+              <button
+                onClick={handleSelectAndAddFolder}
+                className="cozy-action-btn"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '6px 10px',
+                  color: '#ffffff',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(37, 99, 235, 0.4)',
+                }}
+              >
+                <FolderPlus size={13} />
+                <span>+ Add Folder</span>
+              </button>
             </div>
-            <div style={{ maxHeight: '190px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+
+            {/* Quick manual path toggle row */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
+              <button
+                onClick={() => setIsAddingManualFolder(!isAddingManualFolder)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#60a5fa',
+                  fontSize: '11px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                <span>{isAddingManualFolder ? '− Hide manual path input' : '+ Or type/paste path directly…'}</span>
+              </button>
+            </div>
+
+            {/* Manual Path Input Form */}
+            {isAddingManualFolder && (
+              <div style={{ display: 'flex', gap: '6px', animation: 'accordionExpand 0.2s ease-out' }}>
+                <input
+                  type="text"
+                  placeholder="/path/to/folder or ~/Documents"
+                  value={manualFolderPath}
+                  onChange={(e) => setManualFolderPath(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleRegisterNewFolder(manualFolderPath);
+                    if (e.key === 'Escape') setIsAddingManualFolder(false);
+                  }}
+                  autoFocus
+                  style={{
+                    flex: 1,
+                    background: 'rgba(0, 0, 0, 0.45)',
+                    border: '1px solid rgba(255, 255, 255, 0.16)',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    fontSize: '11px',
+                    color: '#ffffff',
+                    outline: 'none',
+                  }}
+                />
+                <button
+                  onClick={() => handleRegisterNewFolder(manualFolderPath)}
+                  disabled={isRegisteringFolder || !manualFolderPath.trim()}
+                  style={{
+                    background: '#2563eb',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '6px 12px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isRegisteringFolder ? 'Adding…' : 'Add & Scan'}
+                </button>
+                <button
+                  onClick={() => setIsAddingManualFolder(false)}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    fontSize: '11px',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {/* List of Registered Folders */}
+            <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {workspaces.map((ws) => {
                 const isSel = ws.path === selectedWorkspace;
                 return (
-                  <button
+                  <div
                     key={ws.path}
-                    onClick={() => onSelectWorkspace(ws.path)}
+                    onClick={() => {
+                      onSelectWorkspace(ws.path);
+                      addToast('info', `Active folder: ${ws.name}`);
+                    }}
                     className="cozy-chip"
                     style={{
-                      background: isSel ? '#2563eb' : 'rgba(255, 255, 255, 0.05)',
+                      background: isSel ? 'rgba(37, 99, 235, 0.22)' : 'rgba(255, 255, 255, 0.05)',
                       border: '1px solid ' + (isSel ? '#3b82f6' : 'rgba(255, 255, 255, 0.08)'),
-                      boxShadow: isSel ? '0 4px 12px rgba(37, 99, 235, 0.4)' : undefined,
+                      boxShadow: isSel ? '0 4px 14px rgba(37, 99, 235, 0.3)' : undefined,
                       borderRadius: '10px',
                       padding: '8px 10px',
-                      color: isSel ? '#ffffff' : '#cbd5e1',
-                      fontSize: '12px',
-                      textAlign: 'left',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       cursor: 'pointer',
+                      gap: '8px',
                     }}
                   >
-                    <span style={{ fontWeight: isSel ? '700' : '500' }}>{ws.name}</span>
-                    <span style={{ fontSize: '11px', opacity: 0.8 }}>{ws.files_count} files</span>
-                  </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          width: '26px',
+                          height: '26px',
+                          borderRadius: '6px',
+                          background: isSel ? '#2563eb' : 'rgba(255, 255, 255, 0.08)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <FolderOpen size={14} color={isSel ? '#ffffff' : '#94a3b8'} />
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: isSel ? '700' : '600', color: isSel ? '#ffffff' : '#e2e8f0' }}>
+                            {ws.name}
+                          </span>
+                          {isSel && (
+                            <span style={{
+                              fontSize: '9px',
+                              fontWeight: '700',
+                              background: '#2563eb',
+                              color: '#ffffff',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              letterSpacing: '0.4px',
+                            }}>
+                              ACTIVE
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#8a8790', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {ws.path}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                        {ws.files_count} files
+                      </span>
+                      {ws.is_removable && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveWorkspace(ws.path, ws.name);
+                          }}
+                          title="Remove workspace"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                            padding: '3px',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            opacity: 0.7,
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
             </div>

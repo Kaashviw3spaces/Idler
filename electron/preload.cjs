@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('idlerDesktop', {
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   quitApp: () => ipcRenderer.invoke('quit-app'),
   openStudio: () => ipcRenderer.invoke('open-studio'),
+  selectFolder: () => ipcRenderer.invoke('select-folder'),
   resizeHeight: (height) => ipcRenderer.send('resize-height', height),
 });
 
