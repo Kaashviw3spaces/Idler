@@ -14,6 +14,9 @@ import {
   Clock,
   ArrowUpLeft,
   X,
+  Eye,
+  Image as ImageIcon,
+  FileCode,
 } from 'lucide-react';
 import {
   StorageAnalyticsResponse,
@@ -21,7 +24,13 @@ import {
   LargeForgottenFile,
   WorkspaceItem,
 } from '../types';
-import { getStorageAnalytics, archiveLargeFile, trashLargeFile } from '../api';
+import {
+  getStorageAnalytics,
+  archiveLargeFile,
+  trashLargeFile,
+  getFilePreviewUrl,
+  fetchFileTextPreview,
+} from '../api';
 
 interface StorageTreemapProps {
   activeWorkspace?: WorkspaceItem | null;
@@ -32,6 +41,16 @@ interface StorageTreemapProps {
 }
 
 type SubSection = 'treemap' | 'large' | 'cloud' | 'categories';
+
+function isImageFile(filename: string): boolean {
+  const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+  return ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico'].includes(ext);
+}
+
+function isTextFile(filename: string): boolean {
+  const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+  return ['.txt', '.md', '.py', '.js', '.ts', '.jsx', '.tsx', '.json', '.html', '.css', '.yaml', '.yml', '.sh', '.rs', '.go', '.csv', '.toml', '.log'].includes(ext);
+}
 
 export const StorageTreemap: React.FC<StorageTreemapProps> = ({
   activeWorkspace,
@@ -56,6 +75,18 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
   const [actionType, setActionType] = useState<'archive' | 'trash' | null>(null);
   const [actionInProgress, setActionInProgress] = useState<boolean>(false);
 
+  // Quick Look File Preview Modal State
+  const [quickLookFile, setQuickLookFile] = useState<{
+    relative_path: string;
+    name: string;
+    size_formatted?: string;
+    category?: string;
+    days_inactive?: number;
+    cloud_info?: any;
+  } | null>(null);
+  const [previewTextContent, setPreviewTextContent] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<boolean>(false);
+
   // Load analytics
   const loadAnalytics = useCallback(async () => {
     if (!activeWorkspace) return;
@@ -76,6 +107,23 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
   useEffect(() => {
     loadAnalytics();
   }, [loadAnalytics]);
+
+  // Fetch text preview when a text/code file is opened in Quick Look
+  useEffect(() => {
+    if (!quickLookFile) {
+      setPreviewTextContent(null);
+      return;
+    }
+    if (isTextFile(quickLookFile.name)) {
+      setPreviewLoading(true);
+      fetchFileTextPreview(quickLookFile.relative_path, activeWorkspace?.path)
+        .then((res) => setPreviewTextContent(res.content))
+        .catch(() => setPreviewTextContent('(Could not load text preview)'))
+        .finally(() => setPreviewLoading(false));
+    } else {
+      setPreviewTextContent(null);
+    }
+  }, [quickLookFile, activeWorkspace]);
 
   // Navigate Treemap current node based on breadcrumb path
   const currentNode = useMemo<StorageTreeNode | null>(() => {
@@ -244,6 +292,7 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
               cursor: 'pointer',
             }}
           >
+            <option value={50}>&gt; 50 MB</option>
             <option value={100}>&gt; 100 MB</option>
             <option value={250}>&gt; 250 MB</option>
             <option value={500}>&gt; 500 MB</option>
@@ -268,6 +317,7 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
               cursor: 'pointer',
             }}
           >
+            <option value={30}>&gt; 30 days</option>
             <option value={90}>&gt; 90 days</option>
             <option value={180}>&gt; 180 days (6 mo)</option>
             <option value={365}>&gt; 1 year</option>
@@ -671,12 +721,20 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
               {currentNode.children && currentNode.children.length > 0 ? (
                 currentNode.children.map((item) => {
                   const pct = currentNode.size_bytes > 0 ? ((item.size_bytes / currentNode.size_bytes) * 100).toFixed(1) : '0';
+                  const isImg = !item.is_dir && isImageFile(item.name);
                   return (
                     <div
                       key={item.name}
                       onClick={() => {
                         if (item.is_dir) {
                           setCurrentNodePath([...currentNodePath, item.name]);
+                        } else {
+                          setQuickLookFile({
+                            relative_path: item.relative_path,
+                            name: item.name,
+                            size_formatted: item.size_formatted,
+                            category: item.category || 'File',
+                          });
                         }
                       }}
                       style={{
@@ -684,7 +742,7 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
                         borderRadius: '8px',
                         background: item.is_dir ? 'rgba(15, 23, 42, 0.85)' : 'rgba(15, 23, 42, 0.5)',
                         border: item.is_dir ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid rgba(148, 163, 184, 0.1)',
-                        cursor: item.is_dir ? 'pointer' : 'default',
+                        cursor: 'pointer',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'space-between',
@@ -692,9 +750,43 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
                         transition: 'transform 0.15s ease',
                       }}
                     >
+                      {/* If leaf image file, render thumbnail preview banner */}
+                      {isImg && (
+                        <div
+                          style={{
+                            width: '100%',
+                            height: '65px',
+                            borderRadius: '6px',
+                            overflow: 'hidden',
+                            background: '#040711',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: '1px solid rgba(56, 189, 248, 0.15)',
+                          }}
+                        >
+                          <img
+                            src={getFilePreviewUrl(item.relative_path, activeWorkspace?.path)}
+                            alt={item.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      )}
+
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                          {item.is_dir ? <Folder size={15} color="#38bdf8" /> : <FileText size={14} color="#94a3b8" />}
+                          {item.is_dir ? (
+                            <Folder size={15} color="#38bdf8" />
+                          ) : isImg ? (
+                            <ImageIcon size={14} color="#f472b6" />
+                          ) : isTextFile(item.name) ? (
+                            <FileCode size={14} color="#38bdf8" />
+                          ) : (
+                            <FileText size={14} color="#94a3b8" />
+                          )}
                           <span
                             style={{
                               fontSize: '12px',
@@ -739,42 +831,79 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
           {currentNode && treeViewMode === 'list' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {currentNode.children && currentNode.children.length > 0 ? (
-                currentNode.children.map((item) => (
-                  <div
-                    key={item.name}
-                    onClick={() => {
-                      if (item.is_dir) {
-                        setCurrentNodePath([...currentNodePath, item.name]);
-                      }
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 12px',
-                      borderRadius: '6px',
-                      background: 'rgba(15, 23, 42, 0.6)',
-                      border: '1px solid rgba(56, 189, 248, 0.1)',
-                      cursor: item.is_dir ? 'pointer' : 'default',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                      {item.is_dir ? <Folder size={14} color="#38bdf8" /> : <FileText size={14} color="#94a3b8" />}
-                      <span style={{ fontSize: '12px', fontWeight: '500', color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {item.name}
-                      </span>
-                      {item.cloud_placeholders_count > 0 && (
-                        <span style={{ fontSize: '10px', color: '#c084fc', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                          <Cloud size={10} /> {item.cloud_placeholders_count}
+                currentNode.children.map((item) => {
+                  const isImg = !item.is_dir && isImageFile(item.name);
+                  return (
+                    <div
+                      key={item.name}
+                      onClick={() => {
+                        if (item.is_dir) {
+                          setCurrentNodePath([...currentNodePath, item.name]);
+                        } else {
+                          setQuickLookFile({
+                            relative_path: item.relative_path,
+                            name: item.name,
+                            size_formatted: item.size_formatted,
+                            category: item.category || 'File',
+                          });
+                        }
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        background: 'rgba(15, 23, 42, 0.6)',
+                        border: '1px solid rgba(56, 189, 248, 0.1)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                        {/* Thumbnail or icon */}
+                        {isImg ? (
+                          <div
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '4px',
+                              overflow: 'hidden',
+                              background: '#000',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <img
+                              src={getFilePreviewUrl(item.relative_path, activeWorkspace?.path)}
+                              alt={item.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        ) : item.is_dir ? (
+                          <Folder size={14} color="#38bdf8" />
+                        ) : isTextFile(item.name) ? (
+                          <FileCode size={14} color="#38bdf8" />
+                        ) : (
+                          <FileText size={14} color="#94a3b8" />
+                        )}
+                        <span style={{ fontSize: '12px', fontWeight: '500', color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {item.name}
                         </span>
-                      )}
+                        {item.cloud_placeholders_count > 0 && (
+                          <span style={{ fontSize: '10px', color: '#c084fc', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                            <Cloud size={10} /> {item.cloud_placeholders_count}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#38bdf8' }}>{item.size_formatted}</span>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>{item.is_dir ? `${item.file_count} f` : ''}</span>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#38bdf8' }}>{item.size_formatted}</span>
-                      <span style={{ fontSize: '11px', color: '#64748b' }}>{item.is_dir ? `${item.file_count} f` : ''}</span>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
                   No items in this directory.
@@ -809,94 +938,192 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {data.large_forgotten_files.map((file) => (
-                <div
-                  key={file.relative_path}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '8px',
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    background: 'rgba(15, 23, 42, 0.75)',
-                    border: '1px solid rgba(251, 191, 36, 0.2)',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '220px' }}>
-                    <FileText size={16} color="#fbbf24" style={{ flexShrink: 0 }} />
-                    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '600', color: '#f8fafc', wordBreak: 'break-all' }}>
-                        {file.name}
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', fontSize: '11px' }}>
-                        <span style={{ color: '#fbbf24' }}>
-                          ⏰ {file.days_inactive}d unopened
+              {data.large_forgotten_files.map((file) => {
+                const isImg = isImageFile(file.name);
+                return (
+                  <div
+                    key={file.relative_path}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      background: 'rgba(15, 23, 42, 0.75)',
+                      border: '1px solid rgba(251, 191, 36, 0.2)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '220px' }}>
+                      {/* Image Thumbnail Preview or Category Icon */}
+                      {isImg ? (
+                        <div
+                          onClick={() => setQuickLookFile(file)}
+                          title="Click to preview full image"
+                          style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                            background: '#040711',
+                            border: '1px solid rgba(56, 189, 248, 0.3)',
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <img
+                            src={getFilePreviewUrl(file.relative_path, activeWorkspace?.path)}
+                            alt={file.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      ) : isTextFile(file.name) ? (
+                        <div
+                          onClick={() => setQuickLookFile(file)}
+                          title="Click to preview code"
+                          style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '8px',
+                            background: 'rgba(56, 189, 248, 0.1)',
+                            border: '1px solid rgba(56, 189, 248, 0.25)',
+                            color: '#38bdf8',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <FileCode size={20} />
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '8px',
+                            background: 'rgba(251, 191, 36, 0.1)',
+                            color: '#fbbf24',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <FileText size={20} />
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        <span
+                          onClick={() => setQuickLookFile(file)}
+                          style={{
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            color: '#f8fafc',
+                            wordBreak: 'break-all',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {file.name}
                         </span>
-                        <span style={{ color: '#64748b' }}>•</span>
-                        <span style={{ color: file.cloud_info.is_cloud_placeholder ? '#c084fc' : '#38bdf8' }}>
-                          {file.cloud_info.is_cloud_placeholder ? '☁️ Cloud' : '💾 Local'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', fontSize: '11px' }}>
+                          <span style={{ color: '#fbbf24' }}>
+                            ⏰ {file.days_inactive}d unopened
+                          </span>
+                          <span style={{ color: '#64748b' }}>•</span>
+                          <span style={{ color: file.cloud_info.is_cloud_placeholder ? '#c084fc' : '#38bdf8' }}>
+                            {file.cloud_info.is_cloud_placeholder ? '☁️ Cloud' : '💾 Local'}
+                          </span>
+                        </div>
                       </div>
                     </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: '700', color: '#fbbf24', marginRight: '4px' }}>
+                        {file.size_formatted}
+                      </span>
+
+                      {/* Preview Button */}
+                      <button
+                        onClick={() => setQuickLookFile(file)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          background: 'rgba(56, 189, 248, 0.08)',
+                          border: '1px solid rgba(56, 189, 248, 0.25)',
+                          color: '#38bdf8',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                        }}
+                        title="View image or file preview"
+                      >
+                        <Eye size={12} /> Preview
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setSelectedFileForAction(file);
+                          setActionType('archive');
+                        }}
+                        disabled={actionInProgress}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          background: 'rgba(56, 189, 248, 0.12)',
+                          border: '1px solid rgba(56, 189, 248, 0.3)',
+                          color: '#38bdf8',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                        }}
+                        title="Safely move to Archive/ folder"
+                      >
+                        <Archive size={12} /> Archive
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setSelectedFileForAction(file);
+                          setActionType('trash');
+                        }}
+                        disabled={actionInProgress}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '5px 10px',
+                          borderRadius: '6px',
+                          background: 'rgba(244, 63, 94, 0.12)',
+                          border: '1px solid rgba(244, 63, 94, 0.3)',
+                          color: '#fb7185',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                        }}
+                        title="Move safely to Trash"
+                      >
+                        <Trash2 size={12} /> Trash
+                      </button>
+                    </div>
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#fbbf24' }}>
-                      {file.size_formatted}
-                    </span>
-
-                    <button
-                      onClick={() => {
-                        setSelectedFileForAction(file);
-                        setActionType('archive');
-                      }}
-                      disabled={actionInProgress}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '5px 10px',
-                        borderRadius: '6px',
-                        background: 'rgba(56, 189, 248, 0.12)',
-                        border: '1px solid rgba(56, 189, 248, 0.3)',
-                        color: '#38bdf8',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                      }}
-                      title="Safely move to Archive/ folder"
-                    >
-                      <Archive size={12} /> Archive
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setSelectedFileForAction(file);
-                        setActionType('trash');
-                      }}
-                      disabled={actionInProgress}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '5px 10px',
-                        borderRadius: '6px',
-                        background: 'rgba(244, 63, 94, 0.12)',
-                        border: '1px solid rgba(244, 63, 94, 0.3)',
-                        color: '#fb7185',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                      }}
-                      title="Move safely to Trash"
-                    >
-                      <Trash2 size={12} /> Trash
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -992,6 +1219,212 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
               <div style={{ fontSize: '11px', color: '#64748b' }}>{cat.file_count} files</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Quick Look File Preview Modal ─────────────────────────────── */}
+      {quickLookFile && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.82)',
+            backdropFilter: 'blur(10px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999999,
+          }}
+          onClick={() => setQuickLookFile(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '92%',
+              maxWidth: '680px',
+              maxHeight: '88vh',
+              background: '#0b1120',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              borderRadius: '16px',
+              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 18px',
+                borderBottom: '1px solid #1e293b',
+                background: 'rgba(15, 23, 42, 0.8)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                {isImageFile(quickLookFile.name) ? (
+                  <ImageIcon size={18} color="#f472b6" />
+                ) : isTextFile(quickLookFile.name) ? (
+                  <FileCode size={18} color="#38bdf8" />
+                ) : (
+                  <FileText size={18} color="#94a3b8" />
+                )}
+                <div style={{ overflow: 'hidden' }}>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {quickLookFile.name}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {quickLookFile.relative_path}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setQuickLookFile(null)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Content: Image or Text Preview */}
+            <div
+              style={{
+                padding: '16px',
+                overflowY: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#040711',
+                minHeight: '220px',
+                maxHeight: '56vh',
+              }}
+            >
+              {isImageFile(quickLookFile.name) ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', width: '100%' }}>
+                  <img
+                    src={getFilePreviewUrl(quickLookFile.relative_path, activeWorkspace?.path)}
+                    alt={quickLookFile.name}
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '50vh',
+                      objectFit: 'contain',
+                      borderRadius: '8px',
+                      boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
+                    }}
+                  />
+                </div>
+              ) : isTextFile(quickLookFile.name) ? (
+                previewLoading ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#38bdf8', fontSize: '13px' }}>
+                    <RefreshCw size={16} className="spin-clockwise" /> Loading preview…
+                  </div>
+                ) : (
+                  <pre
+                    style={{
+                      margin: 0,
+                      width: '100%',
+                      fontSize: '12px',
+                      fontFamily: 'monospace',
+                      color: '#cbd5e1',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                      lineHeight: '1.5',
+                      background: 'rgba(15, 23, 42, 0.4)',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      maxHeight: '50vh',
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {previewTextContent}
+                  </pre>
+                )
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', color: '#94a3b8', padding: '24px' }}>
+                  <FileText size={48} color="#38bdf8" />
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#e2e8f0' }}>Binary File ({quickLookFile.category || 'File'})</div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>Direct in-browser visual preview is available for images, code, text, and markdown files.</div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: '12px 18px',
+                borderTop: '1px solid #1e293b',
+                background: 'rgba(15, 23, 42, 0.9)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '10px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px' }}>
+                <span style={{ fontWeight: '700', color: '#38bdf8' }}>{quickLookFile.size_formatted || ''}</span>
+                {quickLookFile.days_inactive !== undefined && (
+                  <span style={{ color: '#fbbf24' }}>⏰ {quickLookFile.days_inactive}d unopened</span>
+                )}
+                {quickLookFile.cloud_info?.is_cloud_placeholder && (
+                  <span style={{ color: '#c084fc' }}>☁️ Cloud-only</span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={() => {
+                    const f = quickLookFile as LargeForgottenFile;
+                    setQuickLookFile(null);
+                    setSelectedFileForAction(f);
+                    setActionType('archive');
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    color: '#38bdf8',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <Archive size={13} /> Archive
+                </button>
+
+                <button
+                  onClick={() => {
+                    const f = quickLookFile as LargeForgottenFile;
+                    setQuickLookFile(null);
+                    setSelectedFileForAction(f);
+                    setActionType('trash');
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    background: 'rgba(244, 63, 94, 0.15)',
+                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    color: '#fb7185',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <Trash2 size={13} /> Trash
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

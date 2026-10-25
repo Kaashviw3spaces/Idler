@@ -507,6 +507,22 @@ def test_storage_analytics_endpoints(client_and_workspace, monkeypatch):
     assert trash_data["status"] == "success"
     assert "massive_dataset.zip" in trashed
 
+    # Test GET /api/files/preview
+    img_file = workspace / "photo.png"
+    img_file.write_bytes(b"\x89PNG\r\n\x1a\nfakeimagebytes")
+    prev_resp = client.get(f"/api/files/preview?path=photo.png&workspace_path={workspace}")
+    assert prev_resp.status_code == 200
+    assert prev_resp.headers["content-type"] == "image/png"
+    assert prev_resp.content == b"\x89PNG\r\n\x1a\nfakeimagebytes"
+
+    # Test GET /api/files/text-preview
+    txt_file = workspace / "notes.txt"
+    txt_file.write_text("Hello world snippet")
+    txt_resp = client.get(f"/api/files/text-preview?path=notes.txt&workspace_path={workspace}")
+    assert txt_resp.status_code == 200
+    assert txt_resp.json()["content"] == "Hello world snippet"
+
+
 
 
 

@@ -830,6 +830,8 @@ def trash_large_file_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+
+
 @router.post("/analytics/archive")
 def archive_large_file_endpoint(
     req: LargeFileArchiveRequest,
@@ -851,4 +853,69 @@ def archive_large_file_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/files/preview")
+def get_file_preview(
+    path: str = Query(..., description="Workspace-relative path to file"),
+    workspace_path: Optional[str] = Query(default=None),
+):
+    """
+    Safely serves an image or binary preview for files located inside an allowed workspace.
+    Enforces workspace boundary and path traversal validation.
+    """
+    import mimetypes
+    from starlette.responses import FileResponse
+
+    try:
+        ws = resolve_workspace(workspace_path)
+        abs_path = validate_and_resolve_path(path, ws, must_exist=True)
+        if not abs_path.is_file():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Target is not a regular file")
+
+        mime_type, _ = mimetypes.guess_type(str(abs_path))
+        return FileResponse(
+            path=str(abs_path),
+            media_type=mime_type or "application/octet-stream",
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+    except (FileNotFoundError, NotADirectoryError) as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/files/text-preview")
+def get_file_text_preview(
+    path: str = Query(..., description="Workspace-relative path to file"),
+    workspace_path: Optional[str] = Query(default=None),
+    max_bytes: int = Query(default=64 * 1024, description="Max bytes to read for text preview"),
+):
+    """
+    Safely reads and returns a snippet of text/code for files in the workspace.
+    """
+    try:
+        ws = resolve_workspace(workspace_path)
+        abs_path = validate_and_resolve_path(path, ws, must_exist=True)
+        if not abs_path.is_file():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Target is not a regular file")
+
+        file_size = abs_path.stat().st_size
+        with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read(max_bytes)
+
+        return {
+            "path": path,
+            "filename": abs_path.name,
+            "content": content,
+            "size_bytes": file_size,
+            "truncated": file_size > max_bytes,
+            "extension": abs_path.suffix.lower(),
+        }
+    except (FileNotFoundError, NotADirectoryError) as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 

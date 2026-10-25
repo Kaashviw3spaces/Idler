@@ -343,3 +343,25 @@ export async function archiveLargeFile(
   return res.json();
 }
 
+export function getFilePreviewUrl(relativePath: string, workspacePath?: string): string {
+  const params = new URLSearchParams({ path: relativePath });
+  if (workspacePath) params.set('workspace_path', workspacePath);
+  return `${API_BASE}/files/preview?${params.toString()}`;
+}
+
+export async function fetchFileTextPreview(
+  relativePath: string,
+  workspacePath?: string,
+  maxBytes = 64 * 1024
+): Promise<{ path: string; filename: string; content: string; size_bytes: number; truncated: boolean; extension: string }> {
+  const params = new URLSearchParams({ path: relativePath, max_bytes: String(maxBytes) });
+  if (workspacePath) params.set('workspace_path', workspacePath);
+  const res = await fetch(`${API_BASE}/files/text-preview?${params.toString()}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to fetch text preview');
+  }
+  return res.json();
+}
+
+
