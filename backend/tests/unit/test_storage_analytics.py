@@ -181,3 +181,4 @@ def test_trash_large_file(tmp_path):
         )
         assert res["status"] == "success"
         mock_trash.assert_called_once_with(str(file_to_trash))
+

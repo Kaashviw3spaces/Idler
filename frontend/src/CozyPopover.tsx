@@ -1847,6 +1847,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             }}
           >
             <StorageTreemap
+              compact={true}
               activeWorkspace={cleanWorkspaces.find((w) => w.path === selectedWorkspace) || cleanWorkspaces[0] || null}
               workspaces={cleanWorkspaces}
               onSelectWorkspace={(ws) => onSelectWorkspace(ws.path)}
