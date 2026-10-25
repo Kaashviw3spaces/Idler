@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
-  Sparkles,
   History,
   Search,
   Code2,
@@ -108,9 +107,9 @@ function getDestinationSubfolder(destination?: string): string {
   return clean || '(root)';
 }
 
-export const BroomIcon: React.FC<{ size?: number; color?: string; style?: React.CSSProperties }> = ({
-  size = 14,
-  color = '#ffffff',
+const BroomIcon: React.FC<{ size?: number; color?: string; style?: React.CSSProperties }> = ({
+  size = 15,
+  color = 'currentColor',
   style,
 }) => (
   <svg
@@ -124,14 +123,15 @@ export const BroomIcon: React.FC<{ size?: number; color?: string; style?: React.
     strokeLinejoin="round"
     style={style}
   >
-    {/* Clean broom handle */}
-    <line x1="20" y1="3.5" x2="11.5" y2="12" />
+    {/* Clean pole handle */}
+    <line x1="12" y1="2.5" x2="12" y2="12" />
     {/* Broom collar band */}
-    <line x1="9" y1="11.5" x2="13" y2="15.5" />
-    {/* Flared bristle sweep */}
-    <path d="M9.5 12 L4.5 16.5 C3.5 17.5 3.8 19.2 5 20.4 C6.2 21.6 8 21.8 9 20.8 L12.5 15" />
-    {/* Bristle texture slit */}
-    <line x1="6.8" y1="17.2" x2="8.2" y2="19.8" />
+    <line x1="9" y1="12.5" x2="15" y2="12.5" />
+    {/* Flared straw head */}
+    <path d="M9.5 13L5.5 20.2C5.2 21 5.8 21.5 6.8 21.5H17.2C18.2 21.5 18.8 21 18.5 20.2L14.5 13" />
+    {/* Straw texture lines */}
+    <line x1="10" y1="16.5" x2="9.5" y2="21.5" />
+    <line x1="14" y1="16.5" x2="14.5" y2="21.5" />
   </svg>
 );
 
@@ -423,7 +423,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     {
       id: 'planner',
       label: 'Organize',
-      icon: <Sparkles size={15} />,
+      icon: <BroomIcon size={15} />,
     },
     {
       id: 'ledger',
@@ -724,7 +724,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               flexShrink: 0,
             }}
           >
-            <BroomIcon size={14} color="#ffffff" />
+            <BroomIcon size={15} color="#ffffff" />
           </div>
 
           <div style={{ minWidth: 0, flex: 1 }}>
