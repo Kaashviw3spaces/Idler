@@ -106,18 +106,25 @@ class TaskPlanner:
         # Candidate files selection rule:
         # Rule 1: If a subfolder is targeted (e.g. "Idler"), ONLY select loose files directly inside that subfolder.
         #         Deeper nested files (e.g. Idler/frontend/src/...) are preserved and NOT moved.
+        #         Also, if the subfolder itself is a category folder (e.g. "Images"), files matching that category
+        #         are already sorted and must NOT be moved into a redundant nested subfolder (e.g. Images/Images).
         # Rule 2: If no subfolder is targeted (e.g. Desktop root), ONLY select loose files directly in workspace root.
         #         Files that already exist in any subfolder (e.g. Idler/..., MyFolder/...) are preserved and NOT moved.
+        #         Also, if the workspace root itself is a category folder, matching files are already sorted.
         candidate_files = []
         for f in scan_res.files:
             parts = Path(f.relative_path).parts
             if target_subfolder:
                 # Must be directly in target_subfolder (parts: (target_subfolder, filename))
                 if len(parts) == 2 and parts[0] == target_subfolder:
+                    if target_subfolder.lower() == f.category.lower():
+                        continue
                     candidate_files.append(f)
             else:
                 # Must be directly in workspace root (parts: (filename,))
                 if len(parts) == 1:
+                    if self.workspace_root.name.lower() == f.category.lower():
+                        continue
                     candidate_files.append(f)
 
         file_items = [
@@ -166,16 +173,27 @@ class TaskPlanner:
                     # Ensure destination is within the target subfolder if one is selected
                     if target_subfolder and not dst.startswith(f"{target_subfolder}/"):
                         dst = f"{target_subfolder}/{dst.lstrip('/')}"
-                    actions.append(
-                        ActionPlan(
-                            id=f"act-{str(uuid.uuid4())[:8]}",
-                            type=ActionType(action_type_str),
-                            source=src,
-                            destination=dst,
-                            reason=reason,
-                            requires_approval=True,
+
+                    # Prevent redundant nesting of identical category folder (e.g. Images/Images -> Images)
+                    dest_parts = list(Path(dst).parts)
+                    cleaned_parts = []
+                    for p in dest_parts:
+                        if cleaned_parts and p.lower() == cleaned_parts[-1].lower() and p.lower() in [c.lower() for c in category_dir_names]:
+                            continue
+                        cleaned_parts.append(p)
+                    dst = "/".join(cleaned_parts)
+
+                    if dst != src:
+                        actions.append(
+                            ActionPlan(
+                                id=f"act-{str(uuid.uuid4())[:8]}",
+                                type=ActionType(action_type_str),
+                                source=src,
+                                destination=dst,
+                                reason=reason,
+                                requires_approval=True,
+                            )
                         )
-                    )
         except Exception:
             raw_actions = []
 
@@ -204,13 +222,28 @@ class TaskPlanner:
                     continue
 
                 category = classify_file_by_extension(f.name)
+
+                # Never sort a file into a subfolder with the same name if it's already in that category folder!
+                if target_subfolder and target_subfolder.lower() == category.lower():
+                    continue
+                if not target_subfolder and self.workspace_root.name.lower() == category.lower():
+                    continue
+
                 if target_subfolder:
-                    # Sort files within the subfolder into its own category subfolders
                     dest = f"{target_subfolder}/{category}/{f.name}"
                     reason = f"Categorize as {category} inside {target_subfolder}"
                 else:
                     dest = f"{category}/{f.name}"
                     reason = f"Categorize as {category}"
+
+                # Clean any accidental redundant category nesting (e.g. Images/Images/foo.png -> Images/foo.png)
+                dest_parts = list(Path(dest).parts)
+                cleaned_parts = []
+                for p in dest_parts:
+                    if cleaned_parts and p.lower() == cleaned_parts[-1].lower() and p.lower() in [c.lower() for c in category_dir_names]:
+                        continue
+                    cleaned_parts.append(p)
+                dest = "/".join(cleaned_parts)
 
                 if f.relative_path != dest:
                     actions.append(

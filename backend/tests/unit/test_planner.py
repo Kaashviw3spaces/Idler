@@ -271,3 +271,42 @@ async def test_planner_sorts_within_subfolder_into_its_own_subfolders(tmp_path: 
     assert "Idler/logo.png" in actions_by_src2
     assert actions_by_src2["Idler/logo.png"].destination == "Idler/Images/logo.png"
     assert "Idler/src/index.ts" not in actions_by_src2
+
+
+@pytest.mark.asyncio
+async def test_planner_never_creates_redundant_nested_category_folders(tmp_path: Path):
+    """
+    Files already inside a category folder (e.g. Images/photo.png) must NEVER
+    be sorted into a redundant nested subfolder of the same name (e.g. Images/Images/photo.png).
+    """
+    workspace = tmp_path / "Desktop"
+    workspace.mkdir()
+    images_dir = workspace / "Images"
+    images_dir.mkdir()
+    (images_dir / "photo.jpg").write_text("image bytes")
+    (images_dir / "screenshot.png").write_text("png bytes")
+
+    # 1. When organizing Desktop, files in Images are preserved and not touched
+    planner_desktop = TaskPlanner(
+        model_client=MockFallbackModelClient(),
+        workspace_root=workspace
+    )
+    plan_desktop = await planner_desktop.create_plan("Organize all unorganized files by category")
+    assert len(plan_desktop.actions) == 0
+
+    # 2. When Images is targeted explicitly, images must NOT be moved to Images/Images
+    plan_images_targeted = await planner_desktop.create_plan(
+        "Organize files",
+        parameters={"target_subfolder": "Images"}
+    )
+    assert len(plan_images_targeted.actions) == 0
+    assert "No unorganized loose files found" in plan_images_targeted.summary
+
+    # 3. When the workspace root itself is the Images directory
+    planner_images_root = TaskPlanner(
+        model_client=MockFallbackModelClient(),
+        workspace_root=images_dir
+    )
+    plan_images_root = await planner_images_root.create_plan("Organize files")
+    assert len(plan_images_root.actions) == 0
+    assert "No unorganized loose files found" in plan_images_root.summary
