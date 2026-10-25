@@ -1,156 +1,396 @@
-# 🦥 Idler
+# 🦥 IDLER
 
-> **Stop doing repetitive work. Let your AI handle it.**  
-> A Local-First, Open-Weight AI Agent for repetitive computer housekeeping with human-in-the-loop verification, immutable audit logging, and reversible actions.
+<p align="center">
+  <Idler — Your digital housekeeper" width="100%" />
+</p>
 
----
+<h3 align="center">Your computer is a mess. Your sloth has a broom.</h3>
 
-## 📦 Downloads (v0.2.0)
+<p align="center">
+  A digital housekeeper for all the computer chores you've been avoiding.
+  <br />
+  <i>Less mess. Less busywork. More time for absolutely anything else.</i>
+</p>
 
-| Platform | Download Link | Type |
-|---|---|---|
-| **Windows (Installer)** | [📥 **Idler.Setup.0.2.0.exe**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.0/Idler.Setup.0.2.0.exe) | Setup Installer (System Tray & Start Menu) |
-| **Windows (Portable EXE)** | [📥 **Idler.0.2.0.exe**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.0/Idler.0.2.0.exe) | Portable Executable (No install required) |
-| **Windows (Portable ZIP)** | [📥 **Idler-0.2.0-win.zip**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.0/Idler-0.2.0-win.zip) | Standalone Folder Archive |
-| **macOS (DMG Installer)** | [📥 **Idler-0.2.0-arm64.dmg**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.0/Idler-0.2.0-arm64.dmg) | Drag-and-Drop Disk Image Installer |
-| **macOS (Portable ZIP)** | [📥 **Idler-v0.2.0-mac-arm64.zip**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.0/Idler-v0.2.0-mac-arm64.zip) | Standalone `.app` Archive |
+<p align="center">
+  🧹 File housekeeping &nbsp;·&nbsp; 🔎 Duplicate hunting &nbsp;·&nbsp; 📊 Spreadsheet checks
+</p>
 
----
-
-## 🌟 Overview
-
-**Idler** translates natural-language instructions into safe, reviewable, and verifiable operations on your computer. Rather than giving language models unrestricted desktop control or arbitrary shell access, **Idler** enforces a strict security boundary:
-
-1. **Local Planning:** Gemma 4B-class model generates structured JSON action plans locally via Ollama.
-2. **Authoritative Backend Security:** FastAPI backend enforces workspace allowlists, blocks path traversal attacks (`..`), and rejects destructive commands.
-3. **Approval Gate:** File mutating operations require explicit user approval before execution.
-4. **Deterministic Tools:** Safe moves, renames, and duplicate detection with pre-condition and collision checks (never silently overwrite).
-5. **Action Ledger & Safe Undo:** Immutable audit trail stored in SQLite; reversible operations can be undone with 1 click.
-6. **Duplicate Detection:** Multi-pass cryptographic duplicate detection (size grouping followed by streaming SHA-256) with zero accidental deletions.
-7. **Saved Workflows:** Store routine housekeeping commands and rerun them with continuous revalidation.
+<p align="center">
+  <img src="https://img.shields.io/badge/Status-In%20Development-9B91C8?style=flat-square" alt="In development" />
+  <img src="https://img.shields.io/badge/AI-Local--First-8CB8C9?style=flat-square" alt="Local-first AI" />
+  <img src="https://img.shields.io/badge/Backend-FastAPI-7DAF9C?style=flat-square" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/License-MIT-F0C6A5?style=flat-square" alt="MIT License" />
+</p>
 
 ---
 
-## 🏗️ Architecture
+## So... your downloads folder looks like this?
 
 ```text
-+-----------------------------------------------------------+
-|                   React + Vite UI                         |
-|   Prompt Input | Plan Preview | Approval | Action Ledger  |
-+-----------------------------+-----------------------------+
-                              | HTTP / JSON
-                              v
-+-----------------------------------------------------------+
-|                 FastAPI Backend (Port 8000)               |
-|      Task Lifecycle | API Routes | Policy Enforcement     |
-+--------------+------------------------------+--------------+
-               |                              |
-               v                              v
-+------------------------------+  +-------------------------+
-|     Agent Planner Service    |  |  Workspace Security     |
-|   Prompt Sandboxing & Schema |  |  Boundary & Path Checks |
-+--------------+---------------+  +------------+------------+
-               |                               |
-               v                               v
-+------------------------------+  +-------------------------+
-|        Local Ollama          |  |   Restricted Executor   |
-|   Gemma 4B / Fallback Engine |  |   Move, Rename, Hash    |
-+------------------------------+  +------------+------------+
-                                               |
-                                     +---------+---------+
-                                     |                   |
-                                     v                   v
-                            +-----------------+ +-------------------+
-                            |  SQLite Ledger  | |  Host Workspace   |
-                            |  Audit History  | |  Approved Paths   |
-                            +-----------------+ +-------------------+
+Downloads/
+├── final.pdf
+├── final_FINAL.pdf
+├── final_FINAL_v2.pdf
+├── final_FINAL_v2_ACTUAL_FINAL.pdf
+├── new_folder/
+├── new_folder_2/
+├── new_folder_2_REAL/
+├── random_screenshot_8472.png
+└── spreadsheet_use_this_please.csv
 ```
+
+You needed one file.
+
+You now have a small archaeological site.
+
+And somewhere in that mess is the document you actually need, three copies of a spreadsheet, and a screenshot you took six months ago for reasons nobody remembers.
+
+We've all been there.
+
+**Idler is here to help with the little digital messes that somehow become tomorrow's problem.**
+
+It's an AI-powered computer housekeeping assistant that takes instructions in plain English, prepares a plan, and helps carry out supported tasks with your permission.
+
+Think of it as a tiny maid for your computer.
+
+She has a broom. She has a plan. She is not paid enough to deal with `final_FINAL_v7_TRUSTME_REAL.pdf`.
 
 ---
 
-## 🚀 Quickstart Guide
+## 🦥 Meet your new digital housekeeper
 
-### Prerequisites
-- Python 3.9+
-- Node.js 18+ and npm
-- (Optional for local inference) [Ollama](https://ollama.com/) with Gemma (`ollama pull gemma2:2b`)
+You tell Idler what needs doing. It figures out a possible plan, shows you what it intends to do, and waits for your approval before making supported changes.
 
-### 1. Clone & Setup Workspace
-```bash
-git clone https://github.com/your-username/idler.git
-cd idler
+No need to write a script for every tiny chore. No need to manually inspect every file. And definitely no need to give an AI unrestricted control of your computer.
 
-# Seed disposable sample test files
-python3 scripts/seed_test_workspace.py
+### 💬 Things you could ask IDLER
+
+> "Please organize my Downloads folder. It's getting embarrassing."
+
+> "Find duplicate CSV files, but don't delete anything."
+
+> "Check this spreadsheet for missing values and duplicate rows."
+
+> "Look through my project folder and tell me what still needs to be done."
+
+> "Help me tidy this folder without overwriting anything."
+
+IDLER turns requests like these into structured plans that can be checked before execution.
+
+**You handle the important stuff. Let the sloth handle the housekeeping.**
+
+---
+
+## 🧹 What chores can IDLER help with?
+
+<table>
+  <tr>
+    <td width="50%">
+      <h3>🗂️ Folder chaos</h3>
+      Helps inspect and organize files inside approved folders.
+      <br /><br />
+      <i>For the person whose Downloads folder has become a lifestyle.</i>
+    </td>
+    <td width="50%">
+      <h3>🔎 Duplicate hunting</h3>
+      Finds exact duplicate files using hashes rather than guessing from filenames.
+      <br /><br />
+      <i>Because four copies of the same file are not a backup strategy.</i>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3>📊 Spreadsheet triage</h3>
+      Checks CSV files for missing values, duplicate rows, malformed rows and common data inconsistencies.
+      <br /><br />
+      <i>For spreadsheets held together by hope.</i>
+    </td>
+    <td width="50%">
+      <h3>🧑‍💻 Project housekeeping</h3>
+      Inspects project folders, README files and TODO lists.
+      <br /><br />
+      <i>For the projects you swear you'll finish this weekend.</i>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3>↩️ Undo the oops</h3>
+      Tracks supported changes and provides guarded undo for reversible operations.
+      <br /><br />
+      <i>Because "wait, not that file" is a universal language.</i>
+    </td>
+    <td width="50%">
+      <h3>🧾 Keep track of things</h3>
+      Records supported actions and their outcomes in a local action ledger.
+      <br /><br />
+      <i>Receipts for your housekeeping adventures.</i>
+    </td>
+  </tr>
+</table>
+
+> **A quick reality check:** Idler is under development. These are the intended capabilities of the project; what you can use today depends on the features implemented in the current version.
+
+---
+
+## 🧠 The AI has a brain. It does not get the house keys.
+
+Giving an AI unrestricted access to your computer sounds convenient right up until it misunderstands one sentence and reorganizes something you really needed.
+
+So Idler separates **understanding a request** from **having permission to execute it**.
+
+Here's the idea:
+
+```mermaid
+flowchart TD
+    A["💬 You describe the chore"] --> B["🧠 AI proposes a plan"]
+    B --> C["🛡️ Validate the plan"]
+    C --> D{"Is it allowed?"}
+    D -- No --> E["🚫 Reject or ask for clarification"]
+    D -- Yes --> F["👀 Show you the plan"]
+    F --> G{"Your decision"}
+    G -- Reject --> H["🛑 Stop"]
+    G -- Approve --> I["🔧 Run restricted tools"]
+    I --> J["🔍 Verify what happened"]
+    J --> K["📒 Record the result"]
 ```
 
-### 2. Backend Setup
+### The house rules
+
+- **AI suggests.** It interprets your request and proposes actions.
+- **Code checks.** Deterministic rules enforce the permissions and safety requirements.
+- **You approve.** The model cannot approve its own plan.
+- **Tools act.** Only supported, restricted operations can execute.
+- **IDLER verifies.** It checks the result instead of trusting the model's word.
+
+The important part is that the safety rules live in the application itself, not just in a prompt telling the model to behave.
+
+The sloth may be a little confused sometimes. The file permissions shouldn't be.
+
+---
+
+## 🔐 Privacy: no need to air your digital laundry
+
+Your computer contains more than files. It might contain personal documents, private work, passwords, or information you wouldn't send to a stranger.
+
+IDLER is designed around a **local-first approach**.
+
+| Feature | What it means |
+|---|---|
+| 🏠 Local AI option | Run a compatible model using Ollama on your own computer. |
+| 🔒 Approved workspaces | Restrict file operations to configured folders. |
+| 🧮 Local processing | Perform supported file checks, such as exact duplicate detection, locally. |
+| 🧾 Local records | Keep supported action history in a local SQLite database. |
+| ☁️ Optional cloud AI | Explore hosted models using your own API key, with clear privacy trade-offs. |
+
+### What about cloud AI?
+
+Idler may support providers such as Groq as an optional alternative to local inference.
+
+That can make setup easier for people who don't want to download a model, but prompts sent to a hosted provider leave their computer.
+
+The plan is to minimize outgoing data, avoid sending entire files unnecessarily, protect API keys, and add privacy checks before cloud requests.
+
+Local-first is a design goal, not a magical promise that every configuration has zero data exposure.
+
+**Your files are your business. The sloth doesn't gossip.**
+
+---
+
+## 🏗️ Under the hood
+
+Idler uses a frontend, a Python backend, an AI planning layer, restricted tools, and local storage.
+
+```mermaid
+flowchart TB
+    U["🖥️ React + Vite + TypeScript"] <-->|"HTTP / JSON"| API["⚙️ FastAPI Backend"]
+
+    API --> PL["🧠 AI Planner"]
+    PL --> LLM["🏠 Ollama / Local Model"]
+    PL -. Optional .-> CLOUD["☁️ Hosted Model API"]
+
+    API --> GUARD["🛡️ Validation & Permission Checks"]
+    GUARD --> TOOLS["🔧 Restricted File Tools"]
+    TOOLS --> FS["📁 Approved Workspace"]
+
+    API --> DB[("🗃️ SQLite Action Ledger")]
+    TOOLS --> DB
+```
+
+### The tech stack
+
+| Technology | Job |
+|---|---|
+| React, Vite, TypeScript | The user interface |
+| Python, FastAPI | Backend APIs and task handling |
+| Pydantic | Structured input and plan validation |
+| Ollama | Optional local AI inference |
+| SQLite | Local task and action records |
+| Pytest | Automated tests for application behaviour |
+
+The idea is to keep the system understandable and lightweight rather than building a giant infrastructure just to sort a few files.
+
+No elaborate cloud architecture required for the basic housekeeping jobs.
+
+---
+
+## 🧪 Give the sloth a practice run
+
+Before letting Idler near your actual files, start with a sample workspace.
+
+Here's a good first task:
+
+> "Organize the sample folder by file type and find exact duplicate CSVs. Do not delete anything."
+
+A successful test should let you:
+
+1. Inspect the proposed plan.
+2. Review the files that may be affected.
+3. Approve or reject supported changes.
+4. Check the resulting files.
+5. Review the recorded outcome.
+
+Start small. Use disposable test files. Don't begin by pointing an experimental tool at your entire home directory.
+
+Even a sloth needs training.
+
+---
+
+## 🚀 Getting started
+
+### What you'll need
+
+- Git
+- Python compatible with the backend's dependencies
+- Node.js compatible with the frontend
+- Ollama, if using local AI
+- A little patience for a project that's still growing
+
+### 1. Clone the repository
+
 ```bash
-# Setup Python virtual environment
+git clone https://github.com/Kaashviw3spaces/Idler.git
+cd Idler
+```
+
+### 2. Prepare the backend
+
+```bash
 python3 -m venv backend/venv
 source backend/venv/bin/activate
 
-# Install dependencies
 pip install -r backend/requirements.txt
+```
 
-# Start backend server
+Start the API using the project's configured entry point. For a layout that exposes `backend.app.main:app`, the command is:
+
+```bash
 python3 -m uvicorn backend.app.main:app --reload --port 8000
 ```
-Backend will be available at: `http://127.0.0.1:8000`  
-Swagger API Docs: `http://127.0.0.1:8000/docs`
 
-### 3. Frontend Setup
-In a new terminal window:
+If your checkout uses a different module path, follow the entry point defined in the repository.
+
+### 3. Start the frontend
+
+Open another terminal:
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Open `http://localhost:5173` in your browser.
 
----
+Open the local URL printed by Vite.
 
-## 🧪 Running Tests
+### 4. Add local AI (optional)
 
-The test suite covers security traversal defenses, file classification, safe execution, Action Ledger persistence, rollback, workflows, and duplicate detection:
+Install [Ollama](https://ollama.com/) and download the model configured for IDLER.
+
+For example, if the planner is configured to use Gemma 2B:
 
 ```bash
-backend/venv/bin/pytest
+ollama pull gemma2:2b
 ```
 
----
+Make sure the selected model matches your application's configuration.
 
-## 🔒 Security Guarantees
-
-- **No Arbitrary Shell Execution:** The system never evaluates Python code or shell commands generated by models.
-- **Path Traversal Defense:** All paths are canonicalized and verified against allowlisted workspace roots. Traversal sequences (`../`, symlink escapes, absolute escapes) fail closed.
-- **No Silent Overwrites:** Destination collision checks guarantee that files are never overwritten.
-- **No Automatic Permanent Deletions:** Duplicate detection is read-only and displays matching cryptographic hashes for review.
-- **Approval Gate:** All state-changing mutations must be explicitly approved via `/api/tasks/{id}/approve` before execution.
+> **Developer note:** Verify the module paths, seed scripts, dependency files and model settings in your checkout before treating these commands as a tested installation guide.
 
 ---
 
-## 📜 API Reference
+## 🛡️ Safety isn't an optional accessory
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/health` | Healthcheck and active configuration |
-| `GET` | `/api/workspaces` | List configured workspaces and preview files |
-| `POST` | `/api/plan` | Propose a validated, non-executing plan |
-| `GET` | `/api/tasks/{id}` | Retrieve task state, plan, and results |
-| `POST` | `/api/tasks/{id}/approve` | Approve a plan for execution |
-| `POST` | `/api/tasks/{id}/execute` | Execute an approved plan safely |
-| `GET` | `/api/actions` | Retrieve Action Ledger history |
-| `POST` | `/api/actions/{id}/undo` | Safely roll back a supported action |
-| `GET` | `/api/duplicates` | Exact duplicate detection using SHA-256 |
-| `POST` | `/api/duplicates/trash` | Soft-delete duplicate copy to macOS Trash (recoverable) |
-| `GET` | `/api/project/inspect` | Safely inspect project structures, language mix & README |
-| `POST` | `/api/workflows` | Save a declarative workflow in SQLite |
-| `GET` | `/api/workflows` | List saved declarative workflows |
-| `POST` | `/api/workflows/{id}/run` | Revalidate and run a saved workflow |
+Idler is meant to help with real computer files. That means a mistaken action can have real consequences.
+
+The design prioritizes:
+
+- Canonical path checks and protection against path traversal.
+- Rechecking permissions immediately before file changes.
+- Destination collision checks and no silent overwrites.
+- Explicit approval before supported state-changing operations.
+- No unrestricted shell commands generated by the model.
+- No automatic permanent deletion.
+- An action ledger and guarded undo for supported operations.
+
+These controls reduce risk, but they cannot eliminate every possible bug or attack. The current implementation and its tests determine which protections are actually enforced.
+
+If you're contributing a new file operation, test the boring edge cases. Those are usually the ones that matter.
 
 ---
 
-## 📄 License
-MIT License
+## 🗺️ The housekeeping roadmap
 
+The long-term idea is a small, friendly desktop companion that quietly takes care of repetitive computer chores without quietly taking over your computer.
+
+- [ ] 🖥️ A polished native-feeling desktop and menu bar experience.
+- [ ] 🦥 A recognizable sloth-maid mascot and a friendlier interface.
+- [ ] 🧠 More reliable task planning and clearer explanations.
+- [ ] 🔐 Better privacy filtering for optional cloud AI.
+- [ ] 🧹 More useful housekeeping tasks.
+- [ ] 🔁 Saved routines for repetitive jobs.
+- [ ] 🧪 More tests for failure cases and recovery.
+- [ ] 📦 Easier installation for non-technical users.
+
+These are development goals, not claims that every item is already implemented.
+
+---
+
+## 🤝 Help us keep the digital mess under control
+
+Idler is an open-source project, and contributions are welcome.
+
+You could help by:
+
+- Reporting bugs or confusing behaviour.
+- Improving documentation.
+- Adding tests for safety-critical operations.
+- Building new housekeeping tools.
+- Improving the UI or mascot.
+- Helping make local AI setup less intimidating.
+
+### Want to contribute?
+
+1. Fork the repository.
+2. Create a branch for your change.
+3. Make your changes and add relevant tests.
+4. Open a pull request explaining what you improved.
+
+Please use disposable test files. Never include private documents, API keys, or personal data in issues or test fixtures.
+
+---
+
+## 📜 License
+
+Idler is distributed under the MIT License, provided the repository's `LICENSE` file confirms this.
+
+---
+
+<p align="center">
+  <img src="assets/sloth-maid.png" alt="IDLER's sleepy sloth maid holding a broom" width="180" />
+  <br /><br />
+  <strong>Your computer is a mess.</strong>
+  <br />
+  <strong>Your sloth has a broom.</strong>
+  <br /><br />
+  <i>A little less mess. A little more rest. 🦥</i>
+</p>
