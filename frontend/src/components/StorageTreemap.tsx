@@ -24,12 +24,12 @@ import {
   LargeForgottenFile,
   WorkspaceItem,
 } from '../types';
+import { FilePreviewModal } from './FilePreviewModal';
 import {
   getStorageAnalytics,
   archiveLargeFile,
   trashLargeFile,
   getFilePreviewUrl,
-  fetchFileTextPreview,
 } from '../api';
 
 interface StorageTreemapProps {
@@ -84,8 +84,6 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
     days_inactive?: number;
     cloud_info?: any;
   } | null>(null);
-  const [previewTextContent, setPreviewTextContent] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState<boolean>(false);
 
   // Load analytics
   const loadAnalytics = useCallback(async () => {
@@ -107,23 +105,6 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
   useEffect(() => {
     loadAnalytics();
   }, [loadAnalytics]);
-
-  // Fetch text preview when a text/code file is opened in Quick Look
-  useEffect(() => {
-    if (!quickLookFile) {
-      setPreviewTextContent(null);
-      return;
-    }
-    if (isTextFile(quickLookFile.name)) {
-      setPreviewLoading(true);
-      fetchFileTextPreview(quickLookFile.relative_path, activeWorkspace?.path)
-        .then((res) => setPreviewTextContent(res.content))
-        .catch(() => setPreviewTextContent('(Could not load text preview)'))
-        .finally(() => setPreviewLoading(false));
-    } else {
-      setPreviewTextContent(null);
-    }
-  }, [quickLookFile, activeWorkspace]);
 
   // Navigate Treemap current node based on breadcrumb path
   const currentNode = useMemo<StorageTreeNode | null>(() => {
@@ -1224,208 +1205,29 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
 
       {/* ── Quick Look File Preview Modal ─────────────────────────────── */}
       {quickLookFile && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.82)',
-            backdropFilter: 'blur(10px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 999999,
+        <FilePreviewModal
+          file={{
+            name: quickLookFile.name,
+            relative_path: quickLookFile.relative_path,
+            category: quickLookFile.category,
+            formatted_size: quickLookFile.size_formatted,
+            days_inactive: quickLookFile.days_inactive,
           }}
-          onClick={() => setQuickLookFile(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: '92%',
-              maxWidth: '680px',
-              maxHeight: '88vh',
-              background: '#0b1120',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              borderRadius: '16px',
-              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Modal Header */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 18px',
-                borderBottom: '1px solid #1e293b',
-                background: 'rgba(15, 23, 42, 0.8)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                {isImageFile(quickLookFile.name) ? (
-                  <ImageIcon size={18} color="#f472b6" />
-                ) : isTextFile(quickLookFile.name) ? (
-                  <FileCode size={18} color="#38bdf8" />
-                ) : (
-                  <FileText size={18} color="#94a3b8" />
-                )}
-                <div style={{ overflow: 'hidden' }}>
-                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {quickLookFile.name}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {quickLookFile.relative_path}
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setQuickLookFile(null)}
-                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Modal Content: Image or Text Preview */}
-            <div
-              style={{
-                padding: '16px',
-                overflowY: 'auto',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: '#040711',
-                minHeight: '220px',
-                maxHeight: '56vh',
-              }}
-            >
-              {isImageFile(quickLookFile.name) ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', width: '100%' }}>
-                  <img
-                    src={getFilePreviewUrl(quickLookFile.relative_path, activeWorkspace?.path)}
-                    alt={quickLookFile.name}
-                    style={{
-                      maxWidth: '100%',
-                      maxHeight: '50vh',
-                      objectFit: 'contain',
-                      borderRadius: '8px',
-                      boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
-                    }}
-                  />
-                </div>
-              ) : isTextFile(quickLookFile.name) ? (
-                previewLoading ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#38bdf8', fontSize: '13px' }}>
-                    <RefreshCw size={16} className="spin-clockwise" /> Loading preview…
-                  </div>
-                ) : (
-                  <pre
-                    style={{
-                      margin: 0,
-                      width: '100%',
-                      fontSize: '12px',
-                      fontFamily: 'monospace',
-                      color: '#cbd5e1',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-all',
-                      lineHeight: '1.5',
-                      background: 'rgba(15, 23, 42, 0.4)',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      maxHeight: '50vh',
-                      overflowY: 'auto',
-                    }}
-                  >
-                    {previewTextContent}
-                  </pre>
-                )
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', color: '#94a3b8', padding: '24px' }}>
-                  <FileText size={48} color="#38bdf8" />
-                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#e2e8f0' }}>Binary File ({quickLookFile.category || 'File'})</div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>Direct in-browser visual preview is available for images, code, text, and markdown files.</div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div
-              style={{
-                padding: '12px 18px',
-                borderTop: '1px solid #1e293b',
-                background: 'rgba(15, 23, 42, 0.9)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '10px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px' }}>
-                <span style={{ fontWeight: '700', color: '#38bdf8' }}>{quickLookFile.size_formatted || ''}</span>
-                {quickLookFile.days_inactive !== undefined && (
-                  <span style={{ color: '#fbbf24' }}>⏰ {quickLookFile.days_inactive}d unopened</span>
-                )}
-                {quickLookFile.cloud_info?.is_cloud_placeholder && (
-                  <span style={{ color: '#c084fc' }}>☁️ Cloud-only</span>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button
-                  onClick={() => {
-                    const f = quickLookFile as LargeForgottenFile;
-                    setQuickLookFile(null);
-                    setSelectedFileForAction(f);
-                    setActionType('archive');
-                  }}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    background: 'rgba(56, 189, 248, 0.15)',
-                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                    color: '#38bdf8',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <Archive size={13} /> Archive
-                </button>
-
-                <button
-                  onClick={() => {
-                    const f = quickLookFile as LargeForgottenFile;
-                    setQuickLookFile(null);
-                    setSelectedFileForAction(f);
-                    setActionType('trash');
-                  }}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    background: 'rgba(244, 63, 94, 0.15)',
-                    border: '1px solid rgba(244, 63, 94, 0.3)',
-                    color: '#fb7185',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <Trash2 size={13} /> Trash
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+          workspacePath={activeWorkspace?.path}
+          onClose={() => setQuickLookFile(null)}
+          onArchive={() => {
+            const f = quickLookFile as LargeForgottenFile;
+            setSelectedFileForAction(f);
+            setActionType('archive');
+            setQuickLookFile(null);
+          }}
+          onTrash={() => {
+            const f = quickLookFile as LargeForgottenFile;
+            setSelectedFileForAction(f);
+            setActionType('trash');
+            setQuickLookFile(null);
+          }}
+        />
       )}
 
       {/* ── Confirmation Modal for 1-Click Action ──────────────────────── */}
@@ -1543,3 +1345,4 @@ export const StorageTreemap: React.FC<StorageTreemapProps> = ({
     </div>
   );
 };
+

@@ -521,6 +521,33 @@ def test_storage_analytics_endpoints(client_and_workspace, monkeypatch):
     txt_resp = client.get(f"/api/files/text-preview?path=notes.txt&workspace_path={workspace}")
     assert txt_resp.status_code == 200
     assert txt_resp.json()["content"] == "Hello world snippet"
+    assert txt_resp.json()["file_type"] == "text"
+
+    # Test GET /api/files/text-preview on presentation file
+    import zipfile
+    pptx_file = workspace / "sample_deck.pptx"
+    with zipfile.ZipFile(pptx_file, "w") as z:
+        z.writestr(
+            "ppt/slides/slide1.xml",
+            '<?xml version="1.0"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>Project Kickoff</a:t></a:r></a:p><a:p><a:r><a:t>Goal 1: Launch</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>'
+        )
+    ppt_resp = client.get(f"/api/files/text-preview?path=sample_deck.pptx&workspace_path={workspace}")
+    assert ppt_resp.status_code == 200
+    ppt_data = ppt_resp.json()
+    assert ppt_data["is_presentation"] is True
+    assert ppt_data["file_type"] == "presentation"
+    assert ppt_data["presentation_data"]["total_slides"] == 1
+    assert ppt_data["presentation_data"]["slides"][0]["title"] == "Project Kickoff"
+
+    # Test GET /api/files/text-preview on spreadsheet CSV
+    csv_file = workspace / "budget.csv"
+    csv_file.write_text("Item,Cost\nDesign,500\nEngineering,1200\n")
+    csv_resp = client.get(f"/api/files/text-preview?path=budget.csv&workspace_path={workspace}")
+    assert csv_resp.status_code == 200
+    assert csv_resp.json()["is_spreadsheet"] is True
+    assert csv_resp.json()["file_type"] == "spreadsheet"
+    assert csv_resp.json()["spreadsheet_data"]["sheets"][0]["rows"][0] == ["Item", "Cost"]
+
 
 
 

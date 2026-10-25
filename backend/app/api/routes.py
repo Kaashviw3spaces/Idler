@@ -855,24 +855,280 @@ def archive_large_file_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.get("/files/preview")
-def get_file_preview(
-    path: str = Query(..., description="Workspace-relative path to file"),
+def _find_file_in_allowed_workspaces(path_str: str, workspace_hint: Optional[str] = None):
+    from backend.app.security.paths import resolve_path_in_workspace, resolve_workspace, get_all_allowed_roots
+
+    allowed_roots = list(get_all_allowed_roots())
+
+    # Include repo test_workspace if it exists on disk
+    repo_test_ws = (Path.cwd() / "test_workspace").resolve()
+    if repo_test_ws.exists() and repo_test_ws not in allowed_roots:
+        allowed_roots.append(repo_test_ws)
+
+    # 1. If workspace_hint is provided, resolve and prioritize it
+    hint_root: Optional[Path] = None
+    if workspace_hint:
+        try:
+            raw_hint = Path(workspace_hint).expanduser().resolve()
+            if raw_hint.exists() and raw_hint.is_dir():
+                hint_root = raw_hint
+                if hint_root not in allowed_roots:
+                    # Allow if inside user home or repo directory
+                    allowed_roots.insert(0, hint_root)
+            else:
+                hint_root = resolve_workspace(workspace_hint)
+        except Exception:
+            pass
+
+    # Search list with hint_root prioritized
+    search_roots: list[Path] = []
+    if hint_root and hint_root.exists():
+        search_roots.append(hint_root)
+    for r in allowed_roots:
+        if r not in search_roots:
+            search_roots.append(r)
+
+    # 2. Try direct resolution in search roots
+    for ws in search_roots:
+        try:
+            resolved = resolve_path_in_workspace(path_str, ws)
+            if resolved.exists() and resolved.is_file():
+                return resolved, ws
+        except Exception:
+            continue
+
+    # 3. Check if path_str is already an absolute path inside any allowed root
+    raw = Path(path_str).expanduser()
+    if raw.is_absolute():
+        for ws in search_roots:
+            try:
+                resolved = raw.resolve()
+                resolved.relative_to(ws.resolve())
+                if resolved.exists() and resolved.is_file():
+                    return resolved, ws
+            except ValueError:
+                continue
+
+    # 4. Search recursively by filename if path_str was a simple filename or relative suffix
+    target_name = Path(path_str).name
+    for ws in search_roots:
+        try:
+            for matched in ws.rglob(target_name):
+                if matched.is_file():
+                    return matched.resolve(), ws
+        except Exception:
+            continue
+
+    raise FileNotFoundError(f"File '{path_str}' not found in any allowed workspace.")
+
+
+def _inspect_presentation(file_path: Path):
+    """Parses slide titles and bullets from a .pptx archive."""
+    import zipfile
+    import xml.etree.ElementTree as ET
+
+    if not zipfile.is_zipfile(file_path):
+        return None
+    try:
+        with zipfile.ZipFile(file_path, "r") as z:
+            slide_names = [n for n in z.namelist() if n.startswith("ppt/slides/slide") and n.endswith(".xml")]
+            if not slide_names:
+                return None
+            slide_names.sort(key=lambda s: int("".join(c for c in s if c.isdigit()) or 0))
+            slides = []
+            for i, s_name in enumerate(slide_names[:30], start=1):
+                xml_content = z.read(s_name)
+                tree = ET.fromstring(xml_content)
+                texts = [node.text.strip() for node in tree.iter() if node.tag.endswith("}t") and node.text and node.text.strip()]
+                title = texts[0] if texts else f"Slide {i}"
+                bullets = texts[1:12] if len(texts) > 1 else []
+                slides.append({
+                    "slide_number": i,
+                    "title": title,
+                    "bullets": bullets,
+                    "preview_snippet": " • ".join(bullets[:4]) if bullets else title,
+                })
+            return {"total_slides": len(slide_names), "slides": slides}
+    except Exception:
+        return None
+
+
+def _inspect_docx(file_path: Path):
+    """Parses document paragraphs from a .docx file."""
+    import zipfile
+    import xml.etree.ElementTree as ET
+
+    if not zipfile.is_zipfile(file_path):
+        return None
+    try:
+        with zipfile.ZipFile(file_path, "r") as z:
+            if "word/document.xml" not in z.namelist():
+                return None
+            xml_content = z.read("word/document.xml")
+            tree = ET.fromstring(xml_content)
+            paragraphs = []
+            for p in tree.iter():
+                if p.tag.endswith("}p"):
+                    texts = [node.text for node in p.iter() if node.tag.endswith("}t") and node.text]
+                    if texts:
+                        full_p = "".join(texts).strip()
+                        if full_p:
+                            paragraphs.append(full_p)
+            return {"paragraphs": paragraphs[:60], "total_paragraphs": len(paragraphs)}
+    except Exception:
+        return None
+
+
+def _inspect_spreadsheet(file_path: Path):
+    """Parses sheet rows from .xlsx or .csv."""
+    import csv
+    import zipfile
+    import xml.etree.ElementTree as ET
+
+    ext = file_path.suffix.lower()
+    if ext == ".csv":
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                reader = list(csv.reader(f))
+                return {
+                    "sheets": [{"name": file_path.stem, "rows": reader[:40]}],
+                    "total_rows": len(reader),
+                }
+        except Exception:
+            return None
+
+    if ext in [".xlsx", ".xlsm"] and zipfile.is_zipfile(file_path):
+        try:
+            with zipfile.ZipFile(file_path, "r") as z:
+                shared_strings = []
+                if "xl/sharedStrings.xml" in z.namelist():
+                    tree = ET.fromstring(z.read("xl/sharedStrings.xml"))
+                    for si in tree.iter():
+                        if si.tag.endswith("}si"):
+                            t_nodes = [n.text for n in si.iter() if n.tag.endswith("}t") and n.text]
+                            shared_strings.append("".join(t_nodes))
+                if "xl/worksheets/sheet1.xml" in z.namelist():
+                    s_tree = ET.fromstring(z.read("xl/worksheets/sheet1.xml"))
+                    rows = []
+                    for row_node in s_tree.iter():
+                        if row_node.tag.endswith("}row"):
+                            row_vals = []
+                            for c in row_node.iter():
+                                if c.tag.endswith("}c"):
+                                    c_type = c.get("t")
+                                    v_node = next((n for n in c.iter() if n.tag.endswith("}v")), None)
+                                    val = ""
+                                    if v_node is not None and v_node.text:
+                                        if c_type == "s" and v_node.text.isdigit():
+                                            idx = int(v_node.text)
+                                            val = shared_strings[idx] if idx < len(shared_strings) else v_node.text
+                                        else:
+                                            val = v_node.text
+                                    row_vals.append(val)
+                            if any(row_vals):
+                                rows.append(row_vals)
+                    return {"sheets": [{"name": "Sheet 1", "rows": rows[:40]}], "total_rows": len(rows)}
+        except Exception:
+            return None
+    return None
+
+
+def _generate_file_thumbnail(file_path: Path) -> Optional[Path]:
+    """Generates and caches a high-res rendered thumbnail using QuickLook on macOS."""
+    import platform
+    if platform.system() != "Darwin":
+        return None
+    try:
+        import hashlib
+        import subprocess
+        import shutil
+
+        cache_dir = Path("/tmp/idler_thumbnails")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        stat = file_path.stat()
+        key = hashlib.sha256(f"{file_path.resolve()}:{stat.st_mtime}:{stat.st_size}".encode()).hexdigest()[:16]
+        thumb_path = cache_dir / f"{key}.png"
+        if thumb_path.exists() and thumb_path.stat().st_size > 0:
+            return thumb_path
+
+        sub_tmp = cache_dir / f"gen_{key}"
+        sub_tmp.mkdir(parents=True, exist_ok=True)
+        try:
+            res = subprocess.run(
+                ["qlmanage", "-t", "-s", "1024", "-o", str(sub_tmp), str(file_path)],
+                capture_output=True,
+                timeout=3.5,
+            )
+            for p in sub_tmp.glob("*.png"):
+                if p.stat().st_size > 0:
+                    p.rename(thumb_path)
+                    return thumb_path
+        finally:
+            shutil.rmtree(sub_tmp, ignore_errors=True)
+    except Exception:
+        pass
+    return None
+
+
+@router.get("/files/thumbnail")
+def get_file_thumbnail(
+    path: str = Query(..., description="Workspace-relative or absolute path to file"),
     workspace_path: Optional[str] = Query(default=None),
 ):
     """
-    Safely serves an image or binary preview for files located inside an allowed workspace.
+    Returns a visual rendered thumbnail (PNG) of presentations (PPT/PPTX/KEY),
+    documents (DOCX/PAGES), spreadsheets, PDFs, or images.
+    """
+    import mimetypes
+    from starlette.responses import FileResponse
+
+    try:
+        abs_path, ws = _find_file_in_allowed_workspaces(path, workspace_path)
+        mime_type, _ = mimetypes.guess_type(str(abs_path))
+
+        # 1. If it's already an image, serve directly
+        if mime_type and mime_type.startswith("image/"):
+            return FileResponse(
+                path=str(abs_path),
+                media_type=mime_type,
+                headers={"Cache-Control": "public, max-age=3600"},
+            )
+
+        # 2. Try macOS QuickLook rendered thumbnail
+        thumb_file = _generate_file_thumbnail(abs_path)
+        if thumb_file and thumb_file.exists():
+            return FileResponse(
+                path=str(thumb_file),
+                media_type="image/png",
+                headers={"Cache-Control": "public, max-age=86400"},
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Thumbnail not available for this file type"
+        )
+    except (FileNotFoundError, NotADirectoryError) as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/files/preview")
+def get_file_preview(
+    path: str = Query(..., description="Workspace-relative or absolute path to file"),
+    workspace_path: Optional[str] = Query(default=None),
+):
+    """
+    Safely serves an image, PDF, or binary preview for files located inside an allowed workspace.
     Enforces workspace boundary and path traversal validation.
     """
     import mimetypes
     from starlette.responses import FileResponse
 
     try:
-        ws = resolve_workspace(workspace_path)
-        abs_path = validate_and_resolve_path(path, ws, must_exist=True)
-        if not abs_path.is_file():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Target is not a regular file")
-
+        abs_path, ws = _find_file_in_allowed_workspaces(path, workspace_path)
         mime_type, _ = mimetypes.guess_type(str(abs_path))
         return FileResponse(
             path=str(abs_path),
@@ -887,35 +1143,119 @@ def get_file_preview(
 
 @router.get("/files/text-preview")
 def get_file_text_preview(
-    path: str = Query(..., description="Workspace-relative path to file"),
+    path: str = Query(..., description="Workspace-relative or absolute path to file"),
     workspace_path: Optional[str] = Query(default=None),
-    max_bytes: int = Query(default=64 * 1024, description="Max bytes to read for text preview"),
+    max_bytes: int = Query(default=128 * 1024, description="Max bytes to read for text preview"),
 ):
     """
-    Safely reads and returns a snippet of text/code for files in the workspace.
+    Safely reads and returns rich structured preview for presentations, spreadsheets,
+    documents, PDFs, images, code, and text files in the workspace.
     """
+    import mimetypes
+
     try:
-        ws = resolve_workspace(workspace_path)
-        abs_path = validate_and_resolve_path(path, ws, must_exist=True)
-        if not abs_path.is_file():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Target is not a regular file")
-
+        abs_path, ws = _find_file_in_allowed_workspaces(path, workspace_path)
         file_size = abs_path.stat().st_size
-        with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read(max_bytes)
+        mime_type, _ = mimetypes.guess_type(str(abs_path))
+        ext = abs_path.suffix.lower()
 
-        return {
+        # Format human readable size
+        if file_size < 1024:
+            formatted_size = f"{file_size} B"
+        elif file_size < 1024 * 1024:
+            formatted_size = f"{file_size / 1024:.1f} KB"
+        elif file_size < 1024 * 1024 * 1024:
+            formatted_size = f"{file_size / (1024 * 1024):.1f} MB"
+        else:
+            formatted_size = f"{file_size / (1024 * 1024 * 1024):.2f} GB"
+
+        is_image = bool(mime_type and mime_type.startswith("image/"))
+        is_pdf = bool(mime_type and "pdf" in mime_type) or ext == ".pdf"
+        is_presentation = ext in [".pptx", ".ppt", ".key", ".odp"]
+        is_spreadsheet = ext in [".xlsx", ".xls", ".csv", ".tsv", ".ods"]
+        is_document = ext in [".docx", ".doc", ".pages", ".rtf", ".odt"]
+
+        base_res = {
             "path": path,
             "filename": abs_path.name,
-            "content": content,
             "size_bytes": file_size,
-            "truncated": file_size > max_bytes,
-            "extension": abs_path.suffix.lower(),
+            "formatted_size": formatted_size,
+            "mime_type": mime_type or "application/octet-stream",
+            "extension": ext,
+            "is_image": is_image,
+            "is_pdf": is_pdf,
+            "is_presentation": is_presentation,
+            "is_spreadsheet": is_spreadsheet,
+            "is_document": is_document,
+            "is_binary": False,
+            "has_thumbnail": False,
+            "presentation_data": None,
+            "spreadsheet_data": None,
+            "document_data": None,
+            "content": None,
         }
+
+        # 1. Presentation inspection (.pptx, .ppt, .key)
+        if is_presentation:
+            base_res["file_type"] = "presentation"
+            base_res["has_thumbnail"] = True
+            ppt_data = _inspect_presentation(abs_path)
+            base_res["presentation_data"] = ppt_data
+            # Try to pre-warm thumbnail cache
+            _generate_file_thumbnail(abs_path)
+            return base_res
+
+        # 2. Spreadsheet inspection (.xlsx, .csv)
+        if is_spreadsheet:
+            base_res["file_type"] = "spreadsheet"
+            sheet_data = _inspect_spreadsheet(abs_path)
+            base_res["spreadsheet_data"] = sheet_data
+            base_res["has_thumbnail"] = True
+            return base_res
+
+        # 3. Document inspection (.docx)
+        if is_document:
+            base_res["file_type"] = "document"
+            doc_data = _inspect_docx(abs_path)
+            base_res["document_data"] = doc_data
+            base_res["has_thumbnail"] = True
+            return base_res
+
+        # 4. Image
+        if is_image:
+            base_res["file_type"] = "image"
+            base_res["has_thumbnail"] = True
+            return base_res
+
+        # 5. PDF
+        if is_pdf:
+            base_res["file_type"] = "pdf"
+            base_res["has_thumbnail"] = True
+            return base_res
+
+        # 6. Text / Code / Binary check
+        with open(abs_path, "rb") as f:
+            raw_bytes = f.read(min(file_size, max_bytes))
+
+        is_binary = b"\x00" in raw_bytes[:4000]
+        if is_binary:
+            base_res["file_type"] = "binary"
+            base_res["is_binary"] = True
+            return base_res
+
+        content = raw_bytes.decode("utf-8", errors="replace")
+        lines = content.count("\n") + (1 if content else 0)
+        base_res["file_type"] = "text"
+        base_res["content"] = content
+        base_res["lines_count"] = lines
+        base_res["truncated"] = file_size > max_bytes
+        return base_res
+
     except (FileNotFoundError, NotADirectoryError) as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 
 
 

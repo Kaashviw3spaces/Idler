@@ -349,11 +349,57 @@ export function getFilePreviewUrl(relativePath: string, workspacePath?: string):
   return `${API_BASE}/files/preview?${params.toString()}`;
 }
 
+export function getFileThumbnailUrl(relativePath: string, workspacePath?: string): string {
+  const params = new URLSearchParams({ path: relativePath });
+  if (workspacePath) params.set('workspace_path', workspacePath);
+  return `${API_BASE}/files/thumbnail?${params.toString()}`;
+}
+
+export interface FilePreviewInspection {
+  path: string;
+  filename: string;
+  size_bytes: number;
+  formatted_size: string;
+  mime_type: string;
+  extension: string;
+  file_type: 'image' | 'presentation' | 'spreadsheet' | 'document' | 'pdf' | 'text' | 'binary';
+  is_image: boolean;
+  is_pdf: boolean;
+  is_presentation: boolean;
+  is_spreadsheet: boolean;
+  is_document: boolean;
+  is_binary: boolean;
+  has_thumbnail: boolean;
+  presentation_data?: {
+    total_slides: number;
+    slides: Array<{
+      slide_number: number;
+      title: string;
+      bullets: string[];
+      preview_snippet: string;
+    }>;
+  } | null;
+  spreadsheet_data?: {
+    sheets: Array<{
+      name: string;
+      rows: string[][];
+    }>;
+    total_rows: number;
+  } | null;
+  document_data?: {
+    paragraphs: string[];
+    total_paragraphs: number;
+  } | null;
+  content?: string | null;
+  lines_count?: number;
+  truncated?: boolean;
+}
+
 export async function fetchFileTextPreview(
   relativePath: string,
   workspacePath?: string,
-  maxBytes = 64 * 1024
-): Promise<{ path: string; filename: string; content: string; size_bytes: number; truncated: boolean; extension: string }> {
+  maxBytes = 128 * 1024
+): Promise<FilePreviewInspection> {
   const params = new URLSearchParams({ path: relativePath, max_bytes: String(maxBytes) });
   if (workspacePath) params.set('workspace_path', workspacePath);
   const res = await fetch(`${API_BASE}/files/text-preview?${params.toString()}`);
@@ -363,5 +409,6 @@ export async function fetchFileTextPreview(
   }
   return res.json();
 }
+
 
 

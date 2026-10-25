@@ -25,6 +25,7 @@ import {
   HardDrive,
 } from 'lucide-react';
 import { StorageTreemap } from './components/StorageTreemap';
+import { FilePreviewModal, FilePreviewTarget } from './components/FilePreviewModal';
 import {
   PlanResponse,
   ActionRecord,
@@ -85,6 +86,19 @@ function getFileIcon(category?: string, filename?: string) {
     return <FileText size={13} color="#60a5fa" />;
   }
   return <File size={13} color="#94a3b8" />;
+}
+
+function getDestinationSubfolder(destination?: string): string {
+  if (!destination) return '';
+  const clean = destination.trim().replace(/^\/+|\/+$/g, '');
+  const lastSlash = clean.lastIndexOf('/');
+  if (lastSlash > -1) {
+    return clean.substring(0, lastSlash);
+  }
+  if (clean.includes('.')) {
+    return '(root)';
+  }
+  return clean || '(root)';
 }
 
 export const CozyPopover: React.FC<CozyPopoverProps> = ({
@@ -155,6 +169,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   const [isAddingManualFolder, setIsAddingManualFolder] = useState(false);
   const [manualFolderPath, setManualFolderPath] = useState('');
   const [isRegisteringFolder, setIsRegisteringFolder] = useState(false);
+  const [activePreviewFile, setActivePreviewFile] = useState<FilePreviewTarget | null>(null);
 
   // Clean workspaces excluding any test workspaces
   const cleanWorkspaces = workspaces.filter(
@@ -1017,23 +1032,122 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                     <div
                       style={{
                         background: 'rgba(37, 99, 235, 0.12)',
-                        border: '1px solid rgba(37, 99, 235, 0.4)',
-                        borderRadius: '8px',
-                        padding: '8px',
+                        border: '1px solid rgba(56, 189, 248, 0.35)',
+                        borderRadius: '10px',
+                        padding: '10px',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '6px',
+                        gap: '8px',
                       }}
                     >
-                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#60a5fa' }}>
-                        Proposed {currentPlan.actions.length} Actions
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#60a5fa' }}>
+                          Proposed {currentPlan.actions.length} Action{currentPlan.actions.length === 1 ? '' : 's'}
+                        </div>
+                        {currentPlan.actions.some((a) => a.type === 'move_file') && (
+                          <span style={{ fontSize: '9px', color: '#fbbf24', fontWeight: '600', background: 'rgba(251, 191, 36, 0.1)', padding: '1px 5px', borderRadius: '4px' }}>
+                            Subfolder routing
+                          </span>
+                        )}
                       </div>
-                      <div style={{ fontSize: '10px', color: '#cbd5e1', maxHeight: '55px', overflowY: 'auto' }}>
-                        {currentPlan.actions.map((act, i) => (
-                          <div key={i}>• {act.type}: <span style={{ color: '#93c5fd' }}>{act.source.split('/').pop()}</span></div>
-                        ))}
+
+                      <div
+                        style={{
+                          fontSize: '10px',
+                          color: '#cbd5e1',
+                          maxHeight: '120px',
+                          overflowY: 'auto',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                          paddingRight: '2px',
+                        }}
+                      >
+                        {currentPlan.actions.map((act, i) => {
+                          const fileName = act.source.split('/').pop() || act.source;
+                          const destSubfolder = getDestinationSubfolder(act.destination);
+                          const isMove = act.type === 'move_file';
+                          const isRename = act.type === 'rename_file';
+
+                          return (
+                            <div
+                              key={i}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '4px 6px',
+                                borderRadius: '5px',
+                                background: 'rgba(255, 255, 255, 0.04)',
+                                border: '1px solid rgba(255, 255, 255, 0.06)',
+                                gap: '6px',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, overflow: 'hidden' }}>
+                                <span
+                                  style={{
+                                    fontSize: '8px',
+                                    fontWeight: '700',
+                                    padding: '1px 4px',
+                                    borderRadius: '3px',
+                                    background: isMove
+                                      ? 'rgba(56, 189, 248, 0.2)'
+                                      : isRename
+                                      ? 'rgba(251, 191, 36, 0.2)'
+                                      : 'rgba(168, 85, 247, 0.2)',
+                                    color: isMove ? '#38bdf8' : isRename ? '#fbbf24' : '#c084fc',
+                                    letterSpacing: '0.4px',
+                                    textTransform: 'uppercase',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {isMove ? 'MOVE' : isRename ? 'RENAME' : act.type}
+                                </span>
+                                <span
+                                  style={{
+                                    color: '#f8fafc',
+                                    fontWeight: '500',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                  title={act.source}
+                                >
+                                  {fileName}
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                                {isMove && destSubfolder ? (
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      color: '#fbbf24',
+                                      fontWeight: '600',
+                                      background: 'rgba(251, 191, 36, 0.12)',
+                                      border: '1px solid rgba(251, 191, 36, 0.3)',
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      fontSize: '9px',
+                                    }}
+                                  >
+                                    <span>→</span>
+                                    <span>📁 {destSubfolder}</span>
+                                  </span>
+                                ) : act.destination ? (
+                                  <span style={{ color: '#cbd5e1', fontSize: '9px' }}>
+                                    → {act.destination.split('/').pop()}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '2px' }}>
                         <button
                           onClick={handleApproveAndExecute}
                           disabled={isExecuting}
@@ -1042,8 +1156,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                             background: '#059669',
                             color: '#ffffff',
                             border: 'none',
-                            padding: '5px',
-                            borderRadius: '5px',
+                            padding: '6px',
+                            borderRadius: '6px',
                             fontSize: '11px',
                             fontWeight: '600',
                             cursor: 'pointer',
@@ -1054,11 +1168,11 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                         <button
                           onClick={() => setCurrentPlan(null)}
                           style={{
-                            background: 'rgba(255, 255, 255, 0.1)',
+                            background: 'rgba(255, 255, 255, 0.08)',
                             color: '#cbd5e1',
-                            border: 'none',
-                            padding: '5px 8px',
-                            borderRadius: '5px',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            padding: '6px 10px',
+                            borderRadius: '6px',
                             fontSize: '11px',
                             cursor: 'pointer',
                           }}
@@ -1192,7 +1306,12 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                         {act.action_type.toUpperCase()}
                       </div>
                       <div style={{ fontSize: '10px', color: '#8a8790', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                        {act.source?.split('/').pop() || 'file'}
+                        <span>{act.source?.split('/').pop() || 'file'}</span>
+                        {act.destination && (
+                          <span style={{ color: '#fbbf24', marginLeft: '5px', fontWeight: '500' }}>
+                            → 📁 {getDestinationSubfolder(act.destination)}
+                          </span>
+                        )}
                       </div>
                     </div>
                     {!act.is_undone ? (
@@ -1732,16 +1851,33 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                       filteredActiveFiles.slice(0, visibleFileLimit).map((file, idx) => (
                         <div
                           key={`${file.relative_path || file.name}-${idx}`}
+                          onClick={() => setActivePreviewFile({
+                            name: file.name,
+                            relative_path: file.relative_path || file.name,
+                            category: file.category,
+                            size_bytes: file.size_bytes,
+                          })}
+                          title="Click to preview file (PowerPoint, Images, Docs, Spreadsheets, PDF)"
                           style={{
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            padding: '4px 6px',
+                            padding: '6px 8px',
                             borderRadius: '6px',
                             background: 'rgba(255, 255, 255, 0.03)',
-                            border: '1px solid rgba(255, 255, 255, 0.04)',
+                            border: '1px solid rgba(255, 255, 255, 0.05)',
                             fontSize: '11px',
                             gap: '8px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.08)';
+                            e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.05)';
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
@@ -1926,6 +2062,13 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
           <span>Quit</span>
         </button>
       </div>
+
+      {/* Quick Look File Preview Modal */}
+      <FilePreviewModal
+        file={activePreviewFile}
+        workspacePath={effectiveWorkspace}
+        onClose={() => setActivePreviewFile(null)}
+      />
     </div>
   );
 };

@@ -32,6 +32,7 @@ import {
   HardDrive,
 } from 'lucide-react';
 import { StorageTreemap } from './components/StorageTreemap';
+import { FilePreviewModal, FilePreviewTarget } from './components/FilePreviewModal';
 import {
   playTaskCompleteChime,
   playMacChime,
@@ -206,6 +207,7 @@ export default function App() {
   const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
   const [showLiveFilesPreview, setShowLiveFilesPreview] = useState(true);
   const [liveFileLimit, setLiveFileLimit] = useState(16);
+  const [activePreviewFile, setActivePreviewFile] = useState<FilePreviewTarget | null>(null);
 
   useEffect(() => {
     setLiveFileLimit(16);
@@ -1594,17 +1596,33 @@ export default function App() {
                           const isGold = isDocOrReadme(f.name);
                           const catColor = getCategoryColor(f.category);
                           return (
-                            <span key={i} className="studio-file-badge" style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              background: '#0c1322',
-                              border: '1px solid #1b263e',
-                              padding: '5px 10px',
-                              borderRadius: '7px',
-                              fontSize: '12px',
-                              fontFamily: "'JetBrains Mono', 'Fira Code', monospace"
-                            }}>
+                            <span
+                              key={i}
+                              className="studio-file-badge"
+                              onClick={() => setActivePreviewFile(f)}
+                              title="Click to preview file (PowerPoint, Images, Code, Docs, Spreadsheets, PDF)"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                background: '#0c1322',
+                                border: '1px solid #1b263e',
+                                padding: '5px 10px',
+                                borderRadius: '7px',
+                                fontSize: '12px',
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor = '#38bdf8';
+                                e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.08)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor = '#1b263e';
+                                e.currentTarget.style.backgroundColor = '#0c1322';
+                              }}
+                            >
                               <span style={{ color: isGold ? '#fbbf24' : '#e2e8f0', fontWeight: isGold ? '600' : '400' }}>
                                 {f.name}
                               </span>
@@ -1637,17 +1655,33 @@ export default function App() {
                       const isGold = isDocOrReadme(f.name);
                       const catColor = getCategoryColor(f.category);
                       return (
-                        <span key={i} className="studio-file-badge" style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          background: '#0c1322',
-                          border: '1px solid #1b263e',
-                          padding: '5px 10px',
-                          borderRadius: '7px',
-                          fontSize: '12px',
-                          fontFamily: "'JetBrains Mono', 'Fira Code', monospace"
-                        }}>
+                        <span
+                          key={i}
+                          className="studio-file-badge"
+                          onClick={() => setActivePreviewFile(f)}
+                          title="Click to preview file (PowerPoint, Images, Code, Docs, Spreadsheets, PDF)"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: '#0c1322',
+                            border: '1px solid #1b263e',
+                            padding: '5px 10px',
+                            borderRadius: '7px',
+                            fontSize: '12px',
+                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = '#38bdf8';
+                            e.currentTarget.style.backgroundColor = 'rgba(56, 189, 248, 0.08)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = '#1b263e';
+                            e.currentTarget.style.backgroundColor = '#0c1322';
+                          }}
+                        >
                           <span style={{ color: isGold ? '#fbbf24' : '#e2e8f0', fontWeight: isGold ? '600' : '400' }}>
                             {f.relative_path || f.name}
                           </span>
@@ -3128,6 +3162,13 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Quick Look File Preview Modal */}
+      <FilePreviewModal
+        file={activePreviewFile}
+        workspacePath={selectedWorkspace}
+        onClose={() => setActivePreviewFile(null)}
+      />
 
       {/* Global Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
