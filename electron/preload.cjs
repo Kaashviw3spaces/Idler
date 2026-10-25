@@ -12,6 +12,15 @@ contextBridge.exposeInMainWorld('idlerDesktop', {
   openStudio: () => ipcRenderer.invoke('open-studio'),
   selectFolder: () => ipcRenderer.invoke('select-folder'),
   resizeHeight: (height) => ipcRenderer.send('resize-height', height),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  quitAndInstallUpdate: () => ipcRenderer.invoke('quit-and-install-update'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getUpdateStatus: () => ipcRenderer.invoke('get-update-status'),
+  onAutoUpdateStatus: (callback) => {
+    const handler = (event, status) => callback(status);
+    ipcRenderer.on('auto-update-status', handler);
+    return () => ipcRenderer.removeListener('auto-update-status', handler);
+  },
   onWindowShown: (callback) => {
     const handler = () => callback();
     ipcRenderer.on('window-shown', handler);

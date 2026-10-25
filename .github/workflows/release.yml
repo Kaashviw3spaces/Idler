@@ -108,6 +108,8 @@ jobs:
             electron/dist/*.dmg
             electron/dist/*.zip
             electron/dist/*.exe
+            electron/dist/*.yml
+            electron/dist/*.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

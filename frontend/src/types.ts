@@ -218,6 +218,13 @@ export interface AnalyticsMutationResponse {
   message: string;
 }
 
+export interface AutoUpdateStatus {
+  status: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'error' | 'not-available';
+  version?: string | null;
+  progress?: number;
+  error?: string | null;
+}
+
 declare global {
   interface Window {
     idlerDesktop?: {
@@ -233,6 +240,11 @@ declare global {
       selectFolder?: () => Promise<string | null>;
       resizeHeight?: (height: number) => void;
       onWindowShown?: (callback: () => void) => () => void;
+      checkForUpdates?: () => Promise<{ success: boolean; updateInfo?: any; error?: string }>;
+      quitAndInstallUpdate?: () => Promise<boolean>;
+      getAppVersion?: () => Promise<string>;
+      getUpdateStatus?: () => Promise<AutoUpdateStatus>;
+      onAutoUpdateStatus?: (callback: (status: AutoUpdateStatus) => void) => () => void;
     };
   }
 }

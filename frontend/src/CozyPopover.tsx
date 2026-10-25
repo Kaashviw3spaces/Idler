@@ -35,6 +35,7 @@ import {
   WorkflowItem,
   ProjectInspectionResult,
   WorkspaceFilePreview,
+  AutoUpdateStatus,
 } from './types';
 import { SoundPlatform, playTaskCompleteChime } from './sound';
 import * as api from './api';
@@ -227,6 +228,27 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         setIsFetchingInternalFiles(false);
       });
   }, []);
+
+  // Auto-updater status state
+  const [updateStatus, setUpdateStatus] = useState<AutoUpdateStatus>({ status: 'idle' });
+
+  useEffect(() => {
+    if (window.idlerDesktop?.getUpdateStatus) {
+      window.idlerDesktop.getUpdateStatus().then((s) => {
+        if (s) setUpdateStatus(s);
+      }).catch(() => {});
+    }
+
+    if (window.idlerDesktop?.onAutoUpdateStatus) {
+      const unsub = window.idlerDesktop.onAutoUpdateStatus((status) => {
+        setUpdateStatus(status);
+        if (status.status === 'downloaded') {
+          addToast('success', `Update v${status.version || ''} ready! Restart to apply.`);
+        }
+      });
+      return () => unsub();
+    }
+  }, [addToast]);
 
   useEffect(() => {
     if (effectiveWorkspace) {
@@ -849,6 +871,75 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
           >
             Retry Connection
           </button>
+        </div>
+      )}
+
+      {/* Auto-Update Ready Notification Banner */}
+      {updateStatus.status === 'downloaded' && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(5, 150, 105, 0.28) 100%)',
+            border: '1px solid #10b981',
+            borderRadius: '12px',
+            padding: '8px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+            <span style={{ fontSize: '13px', flexShrink: 0 }}>🚀</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '11px', fontWeight: '700', color: '#6ee7b7' }}>
+                v{updateStatus.version || 'New'} Update Ready!
+              </div>
+              <div style={{ fontSize: '10px', color: '#a7f3d0', opacity: 0.85 }}>
+                Restart now to apply latest features.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              if (window.idlerDesktop?.quitAndInstallUpdate) {
+                window.idlerDesktop.quitAndInstallUpdate();
+              }
+            }}
+            style={{
+              background: '#059669',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '4px 10px',
+              color: '#ffffff',
+              fontSize: '11px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            Restart Now
+          </button>
+        </div>
+      )}
+
+      {/* Auto-Update Downloading Indicator */}
+      {updateStatus.status === 'downloading' && (
+        <div
+          style={{
+            background: 'rgba(37, 99, 235, 0.12)',
+            border: '1px solid rgba(59, 130, 246, 0.35)',
+            borderRadius: '12px',
+            padding: '7px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '11px',
+            color: '#93c5fd',
+          }}
+        >
+          <span>⬇️ Downloading v{updateStatus.version || 'update'}...</span>
+          <span style={{ fontWeight: '700', color: '#60a5fa' }}>{updateStatus.progress}%</span>
         </div>
       )}
 

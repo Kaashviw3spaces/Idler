@@ -18,6 +18,13 @@
   "build": {
     "appId": "com.idler.desktop",
     "productName": "Idler",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Kaashviw3spaces",
+        "repo": "Idler"
+      }
+    ],
     "mac": {
       "category": "public.app-category.utilities",
       "target": [
@@ -53,6 +60,8 @@
       "assets/**/*",
       "frontend_dist/**/*"
     ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }
-
