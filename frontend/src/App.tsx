@@ -2386,8 +2386,24 @@ export default function App() {
                       </td>
                       <td style={{ padding: '12px', fontWeight: '600', color: '#cbd5e1' }}>{act.action_type}</td>
                       <td style={{ padding: '12px', fontFamily: 'monospace' }}>
-                        <div style={{ color: '#e2e8f0' }}>{act.source}</div>
-                        {act.destination && <div style={{ color: '#38bdf8', fontSize: '12px' }}>&rarr; {act.destination}</div>}
+                        <div style={{ color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span>{act.source}</span>
+                          {act.destination && (
+                            <span style={{
+                              color: '#fbbf24',
+                              background: 'rgba(251, 191, 36, 0.12)',
+                              border: '1px solid rgba(251, 191, 36, 0.28)',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              fontFamily: 'system-ui, sans-serif'
+                            }}>
+                              📁 {getSubdirectory(act.destination) || '(root)'}
+                            </span>
+                          )}
+                        </div>
+                        {act.destination && <div style={{ color: '#38bdf8', fontSize: '12px', marginTop: '3px' }}>&rarr; {act.destination}</div>}
                       </td>
                       <td style={{ padding: '12px' }}>
                         <span style={{

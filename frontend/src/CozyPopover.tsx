@@ -1066,8 +1066,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                         {currentPlan.actions.map((act, i) => {
                           const fileName = act.source.split('/').pop() || act.source;
                           const destSubfolder = getDestinationSubfolder(act.destination);
-                          const isMove = act.type === 'move_file';
-                          const isRename = act.type === 'rename_file';
+                          const isMove = act.type.toLowerCase().includes('move') || act.type === 'move_file';
+                          const isRename = act.type.toLowerCase().includes('rename') || act.type === 'rename_file';
 
                           return (
                             <div
@@ -1301,14 +1301,31 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                       transition: 'background 0.15s ease',
                     }}
                   >
-                    <div style={{ overflow: 'hidden', paddingRight: '8px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#f1f5f9' }}>
-                        {act.action_type.toUpperCase()}
-                      </div>
-                      <div style={{ fontSize: '10px', color: '#8a8790', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                        <span>{act.source?.split('/').pop() || 'file'}</span>
+                    <div style={{ overflow: 'hidden', paddingRight: '8px', minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>{act.action_type.toUpperCase()}</span>
                         {act.destination && (
-                          <span style={{ color: '#fbbf24', marginLeft: '5px', fontWeight: '500' }}>
+                          <span
+                            style={{
+                              fontSize: '9px',
+                              color: '#fbbf24',
+                              fontWeight: '600',
+                              background: 'rgba(251, 191, 36, 0.12)',
+                              border: '1px solid rgba(251, 191, 36, 0.25)',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            📁 {getDestinationSubfolder(act.destination)}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#8a8790', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', overflow: 'hidden' }}>
+                        <span style={{ color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {act.source?.split('/').pop() || 'file'}
+                        </span>
+                        {act.destination && (
+                          <span style={{ color: '#fbbf24', flexShrink: 0, fontWeight: '500' }}>
                             → 📁 {getDestinationSubfolder(act.destination)}
                           </span>
                         )}
