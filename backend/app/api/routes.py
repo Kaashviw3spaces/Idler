@@ -206,7 +206,7 @@ async def create_plan(request: TaskCreateRequest, db: Session = Depends(get_db))
     """
     try:
         planner = TaskPlanner(workspace_hint=request.workspace_path)
-        plan = await planner.create_plan(request.query)
+        plan = await planner.create_plan(request.query, parameters=request.parameters)
 
         # Record task and planned actions in SQLite ledger
         ledger = ActionLedgerService(db)

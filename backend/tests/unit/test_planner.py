@@ -188,3 +188,86 @@ Let me know if you would like me to proceed!"""
     assert plan.actions[0].source == "invoice.pdf"
     assert plan.actions[0].destination == "Documents/invoice.pdf"
     assert "Finance" in plan.summary or "invoice" in plan.summary
+
+
+@pytest.mark.asyncio
+async def test_planner_does_not_suggest_files_in_existing_subfolder(tmp_path: Path):
+    """
+    When organizing root workspace (e.g. Desktop), files already in subfolders (e.g. Idler)
+    must NOT be suggested to be moved out into parent category folders.
+    """
+    workspace = tmp_path / "Desktop"
+    workspace.mkdir()
+    # Loose file on Desktop
+    (workspace / "loose_photo.png").write_text("image data")
+    # Project subfolder Idler on Desktop with its own files
+    idler_dir = workspace / "Idler"
+    idler_dir.mkdir()
+    (idler_dir / "app.py").write_text("print('hello')")
+    (idler_dir / "package.json").write_text("{}")
+    nested_dir = idler_dir / "backend"
+    nested_dir.mkdir()
+    (nested_dir / "main.py").write_text("# main")
+
+    planner = TaskPlanner(
+        model_client=MockFallbackModelClient(),
+        workspace_root=workspace
+    )
+
+    plan = await planner.create_plan("Organize all unorganized files by category")
+    assert plan.status == TaskStatus.AWAITING_APPROVAL
+    # Only loose_photo.png should be moved; Idler files must NOT be suggested!
+    assert len(plan.actions) == 1
+    assert plan.actions[0].source == "loose_photo.png"
+    assert plan.actions[0].destination == "Images/loose_photo.png"
+
+
+@pytest.mark.asyncio
+async def test_planner_sorts_within_subfolder_into_its_own_subfolders(tmp_path: Path):
+    """
+    When organizing a subfolder (e.g. Idler), it sorts loose files in that subfolder
+    into its own subfolders (e.g. Idler/Code, Idler/Images), preserving deeper nested files.
+    """
+    workspace = tmp_path / "Desktop"
+    workspace.mkdir()
+    (workspace / "desktop_note.txt").write_text("desktop file")
+
+    idler_dir = workspace / "Idler"
+    idler_dir.mkdir()
+    (idler_dir / "script.py").write_text("python script")
+    (idler_dir / "logo.png").write_text("png logo")
+    nested_dir = idler_dir / "src"
+    nested_dir.mkdir()
+    (nested_dir / "index.ts").write_text("nested code")
+
+    planner = TaskPlanner(
+        model_client=MockFallbackModelClient(),
+        workspace_root=workspace
+    )
+
+    # 1. Target via natural language "organize Idler folder"
+    plan = await planner.create_plan("Organize files in Idler folder by category")
+    assert plan.status == TaskStatus.AWAITING_APPROVAL
+    actions_by_src = {a.source: a for a in plan.actions}
+
+    # script.py -> Idler/Code/script.py
+    assert "Idler/script.py" in actions_by_src
+    assert actions_by_src["Idler/script.py"].destination == "Idler/Code/script.py"
+
+    # logo.png -> Idler/Images/logo.png
+    assert "Idler/logo.png" in actions_by_src
+    assert actions_by_src["Idler/logo.png"].destination == "Idler/Images/logo.png"
+
+    # nested index.ts and desktop_note.txt are preserved/untouched!
+    assert "Idler/src/index.ts" not in actions_by_src
+    assert "desktop_note.txt" not in actions_by_src
+
+    # 2. Target via parameters {"target_subfolder": "Idler"}
+    plan2 = await planner.create_plan("Quick Sort", parameters={"target_subfolder": "Idler"})
+    assert plan2.status == TaskStatus.AWAITING_APPROVAL
+    actions_by_src2 = {a.source: a for a in plan2.actions}
+    assert "Idler/script.py" in actions_by_src2
+    assert actions_by_src2["Idler/script.py"].destination == "Idler/Code/script.py"
+    assert "Idler/logo.png" in actions_by_src2
+    assert actions_by_src2["Idler/logo.png"].destination == "Idler/Images/logo.png"
+    assert "Idler/src/index.ts" not in actions_by_src2

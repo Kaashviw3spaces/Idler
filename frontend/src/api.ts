@@ -63,11 +63,19 @@ export async function fetchWorkspaceFiles(path?: string): Promise<WorkspaceFiles
   return res.json();
 }
 
-export async function createPlan(query: string, workspacePath?: string): Promise<PlanResponse> {
+export async function createPlan(
+  query: string,
+  workspacePath?: string,
+  parameters?: Record<string, any>
+): Promise<PlanResponse> {
   const res = await fetch(`${API_BASE}/plan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, workspace_path: workspacePath || null }),
+    body: JSON.stringify({
+      query,
+      workspace_path: workspacePath || null,
+      parameters: parameters || {},
+    }),
   });
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));

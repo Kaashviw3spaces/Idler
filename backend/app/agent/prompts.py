@@ -7,6 +7,9 @@ STRICT CONSTRAINTS:
 3. NEVER propose deleting files permanently.
 4. All file paths MUST be relative to the provided workspace directory.
 5. Provide a valid JSON response matching the required schema.
+6. SUBFOLDER PRESERVATION RULE: NEVER suggest moving files that are already inside a subfolder or project folder out into the parent directory.
+7. If organizing a specific subfolder (e.g. "Idler"), organize its files INTO ITS OWN subfolders (e.g. "Idler/Code", "Idler/Images", "Idler/Documents"), NEVER outside of that subfolder.
+8. Only organize unorganized loose files directly in the target directory; leave existing subfolders and their nested contents intact.
 
 AVAILABLE FILES IN WORKSPACE:
 {file_list_json}

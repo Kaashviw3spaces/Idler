@@ -7,6 +7,7 @@ import {
   FolderSync,
   FolderOpen,
   FolderPlus,
+  Folder,
   ArrowRight,
   Settings,
   Power,
@@ -170,6 +171,14 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   const [manualFolderPath, setManualFolderPath] = useState('');
   const [isRegisteringFolder, setIsRegisteringFolder] = useState(false);
   const [activePreviewFile, setActivePreviewFile] = useState<FilePreviewTarget | null>(null);
+
+  // Targeted subfolder within active workspace (e.g. 'Idler')
+  const [selectedSubfolder, setSelectedSubfolder] = useState<string | null>(null);
+
+  // Reset selected subfolder when active workspace changes
+  useEffect(() => {
+    setSelectedSubfolder(null);
+  }, [selectedWorkspace]);
 
   // Clean workspaces excluding any test workspaces
   const cleanWorkspaces = workspaces.filter(
@@ -372,14 +381,20 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     },
   ];
 
-  async function handleRunPrompt(queryToRun?: string) {
+  async function handleRunPrompt(queryToRun?: string, subfolderOverride?: string | null) {
     const q = queryToRun || prompt;
     if (!q.trim()) return;
     setIsPlanning(true);
     setCurrentPlan(null);
 
+    const targetSub = subfolderOverride !== undefined ? subfolderOverride : selectedSubfolder;
+    const params: Record<string, any> = {};
+    if (targetSub) {
+      params.target_subfolder = targetSub;
+    }
+
     try {
-      const res = await api.createPlan(q, selectedWorkspace || undefined);
+      const res = await api.createPlan(q, selectedWorkspace || undefined, params);
       setCurrentPlan(res);
       setOptionsExpanded(true);
       addToast('info', `Plan generated: ${res.actions.length} actions proposed`);
@@ -622,7 +637,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
           animation: 'bannerShimmer 4s ease-in-out infinite',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
           <div
             style={{
               width: '28px',
@@ -633,13 +648,14 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               overflow: 'hidden',
+              flexShrink: 0,
             }}
           >
             <Sparkles size={16} color="#ffffff" />
           </div>
-          <div>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff', lineHeight: 1.2 }}>
-              Idler Local AI
+              {selectedSubfolder ? `Sort Subfolder: ${selectedSubfolder}` : 'Idler Local AI'}
             </div>
             <div
               onClick={() => setActiveTab('workspaces')}
@@ -653,10 +669,17 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                 alignItems: 'center',
                 gap: '3px',
                 textDecoration: 'underline dotted rgba(255,255,255,0.4)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
             >
-              <span>{activeWsObj ? `${activeWsObj.name} • ${activeWsObj.files_count} files` : 'Ready to organize'}</span>
-              <ChevronRight size={10} style={{ opacity: 0.85 }} />
+              <span>
+                {selectedSubfolder
+                  ? `${activeWsObj?.name || 'Workspace'} / ${selectedSubfolder}`
+                  : (activeWsObj ? `${activeWsObj.name} • ${activeWsObj.files_count} files` : 'Ready to organize')}
+              </span>
+              <ChevronRight size={10} style={{ opacity: 0.85, flexShrink: 0 }} />
             </div>
           </div>
         </div>
@@ -665,7 +688,11 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
           className="quick-sort-btn"
           onClick={() => {
             setActiveTab('planner');
-            handleRunPrompt('Organize all unorganized files by category');
+            handleRunPrompt(
+              selectedSubfolder
+                ? `Organize all unorganized files in ${selectedSubfolder} folder by category`
+                : 'Organize all unorganized files by category'
+            );
           }}
           disabled={isPlanning}
           style={{
@@ -678,11 +705,79 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             fontWeight: '700',
             cursor: 'pointer',
             boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+            flexShrink: 0,
           }}
         >
-          {isPlanning ? 'Thinking…' : 'Quick Sort'}
+          {isPlanning ? 'Thinking…' : (selectedSubfolder ? `Sort ${selectedSubfolder}` : 'Quick Sort')}
         </button>
       </div>
+
+      {/* Subfolder Scope Selector: Allows 1-click targeting of subfolders like Idler */}
+      {activeWsObj?.subdirectories && activeWsObj.subdirectories.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            marginTop: '5px',
+            padding: '0 2px',
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
+          }}
+        >
+          <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px', flexShrink: 0 }}>
+            Scope:
+          </span>
+          <button
+            onClick={() => setSelectedSubfolder(null)}
+            title={`Sort only loose files directly in ${activeWsObj.name} (subfolders preserved)`}
+            style={{
+              background: selectedSubfolder === null ? 'rgba(37, 99, 235, 0.35)' : 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid ' + (selectedSubfolder === null ? '#3b82f6' : 'rgba(255, 255, 255, 0.1)'),
+              borderRadius: '6px',
+              padding: '2px 8px',
+              fontSize: '10px',
+              fontWeight: selectedSubfolder === null ? '700' : '500',
+              color: selectedSubfolder === null ? '#ffffff' : '#cbd5e1',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            Entire {activeWsObj.name} (loose files)
+          </button>
+          {activeWsObj.subdirectories.map((sub) => {
+            const isSel = selectedSubfolder === sub.name;
+            return (
+              <button
+                key={sub.name}
+                onClick={() => setSelectedSubfolder(isSel ? null : sub.name)}
+                title={`Sort files within ${sub.name} into its own subfolders (code, images, etc.)`}
+                style={{
+                  background: isSel ? 'rgba(37, 99, 235, 0.35)' : 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid ' + (isSel ? '#3b82f6' : 'rgba(255, 255, 255, 0.1)'),
+                  borderRadius: '6px',
+                  padding: '2px 8px',
+                  fontSize: '10px',
+                  fontWeight: isSel ? '700' : '500',
+                  color: isSel ? '#ffffff' : '#cbd5e1',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>📁 {sub.name}</span>
+                <span style={{ opacity: 0.65, fontSize: '9px' }}>({sub.files_count})</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* 2. Center Hero Mascot: Pure White & Cool Sloth with Ambient Breathing Glow */}
       <div
@@ -1677,100 +1772,187 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             )}
 
             {/* List of Registered Folders */}
-            <div style={{ maxHeight: '115px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <div style={{ maxHeight: '140px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px' }}>
               {cleanWorkspaces.map((ws) => {
                 const isSel = ws.path === selectedWorkspace;
                 return (
-                  <div
-                    key={ws.path}
-                    onClick={() => {
-                      onSelectWorkspace(ws.path);
-                      addToast('info', `Active folder: ${ws.name}`);
-                    }}
-                    className="cozy-chip"
-                    style={{
-                      background: isSel ? 'rgba(37, 99, 235, 0.22)' : 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid ' + (isSel ? '#3b82f6' : 'rgba(255, 255, 255, 0.08)'),
-                      boxShadow: isSel ? '0 4px 14px rgba(37, 99, 235, 0.3)' : undefined,
-                      borderRadius: '10px',
-                      padding: '7px 10px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      cursor: 'pointer',
-                      gap: '8px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
-                      <div
-                        style={{
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '6px',
-                          background: isSel ? '#2563eb' : 'rgba(255, 255, 255, 0.08)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <FolderOpen size={13} color={isSel ? '#ffffff' : '#94a3b8'} />
-                      </div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '12px', fontWeight: isSel ? '700' : '600', color: isSel ? '#ffffff' : '#e2e8f0' }}>
-                            {ws.name}
-                          </span>
-                          {isSel && (
-                            <span style={{
-                              fontSize: '9px',
-                              fontWeight: '700',
-                              background: '#2563eb',
-                              color: '#ffffff',
-                              padding: '1px 5px',
-                              borderRadius: '4px',
-                              letterSpacing: '0.4px',
-                            }}>
-                              ACTIVE
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: '10px', color: '#8a8790', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {ws.path}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-                        {ws.files_count} files
-                      </span>
-                      {ws.is_removable && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveWorkspace(ws.path, ws.name);
-                          }}
-                          title="Remove workspace"
+                  <div key={ws.path} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div
+                      onClick={() => {
+                        onSelectWorkspace(ws.path);
+                        setSelectedSubfolder(null);
+                        addToast('info', `Active folder: ${ws.name}`);
+                      }}
+                      className="cozy-chip"
+                      style={{
+                        background: isSel ? 'rgba(37, 99, 235, 0.22)' : 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid ' + (isSel ? '#3b82f6' : 'rgba(255, 255, 255, 0.08)'),
+                        boxShadow: isSel ? '0 4px 14px rgba(37, 99, 235, 0.3)' : undefined,
+                        borderRadius: '10px',
+                        padding: '7px 10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                        <div
                           style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#ef4444',
-                            cursor: 'pointer',
-                            padding: '3px',
-                            borderRadius: '4px',
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '6px',
+                            background: isSel ? '#2563eb' : 'rgba(255, 255, 255, 0.08)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            opacity: 0.7,
+                            flexShrink: 0,
                           }}
-                          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
                         >
-                          <Trash2 size={12} />
-                        </button>
-                      )}
+                          <FolderOpen size={13} color={isSel ? '#ffffff' : '#94a3b8'} />
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: isSel ? '700' : '600', color: isSel ? '#ffffff' : '#e2e8f0' }}>
+                              {ws.name}
+                            </span>
+                            {isSel && (
+                              <span style={{
+                                fontSize: '9px',
+                                fontWeight: '700',
+                                background: '#2563eb',
+                                color: '#ffffff',
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                                letterSpacing: '0.4px',
+                              }}>
+                                ACTIVE
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '10px', color: '#8a8790', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {ws.path}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                          {ws.files_count} files
+                        </span>
+                        {ws.is_removable && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveWorkspace(ws.path, ws.name);
+                            }}
+                            title="Remove workspace"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#ef4444',
+                              cursor: 'pointer',
+                              padding: '3px',
+                              borderRadius: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              opacity: 0.7,
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Subdirectories of this workspace */}
+                    {isSel && ws.subdirectories && ws.subdirectories.length > 0 && (
+                      <div style={{
+                        marginLeft: '12px',
+                        paddingLeft: '8px',
+                        borderLeft: '2px solid rgba(59, 130, 246, 0.25)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '3px',
+                        marginTop: '1px',
+                        marginBottom: '4px',
+                      }}>
+                        {ws.subdirectories.map((sub) => {
+                          const isSubActive = selectedSubfolder === sub.name;
+                          return (
+                            <div
+                              key={sub.path}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: isSubActive ? 'rgba(37, 99, 235, 0.18)' : 'rgba(255, 255, 255, 0.03)',
+                                border: '1px solid ' + (isSubActive ? 'rgba(59, 130, 246, 0.35)' : 'rgba(255, 255, 255, 0.05)'),
+                                borderRadius: '6px',
+                                padding: '3px 7px',
+                                fontSize: '11px',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, flex: 1 }}>
+                                <Folder size={11} color={isSubActive ? '#60a5fa' : '#94a3b8'} />
+                                <span style={{ color: isSubActive ? '#ffffff' : '#cbd5e1', fontWeight: isSubActive ? '700' : '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {sub.name}
+                                </span>
+                                <span style={{ color: '#64748b', fontSize: '10px' }}>({sub.files_count})</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSelectWorkspace(sub.path);
+                                    setSelectedSubfolder(null);
+                                    addToast('info', `Active directory set to: ${sub.name}`);
+                                  }}
+                                  title="Set this subfolder as the active directory"
+                                  style={{
+                                    background: 'rgba(37, 99, 235, 0.22)',
+                                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                                    borderRadius: '5px',
+                                    padding: '1px 6px',
+                                    color: '#93c5fd',
+                                    fontSize: '10px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  Open
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedSubfolder(sub.name);
+                                    setActiveTab('planner');
+                                    handleRunPrompt(`Organize all unorganized files in ${sub.name} folder by category`, sub.name);
+                                  }}
+                                  title={`Sort files within ${sub.name} into its own subfolders (code, images, etc.)`}
+                                  style={{
+                                    background: 'rgba(16, 185, 129, 0.2)',
+                                    border: '1px solid rgba(52, 211, 153, 0.35)',
+                                    borderRadius: '5px',
+                                    padding: '1px 6px',
+                                    color: '#6ee7b7',
+                                    fontSize: '10px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  Sort
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
