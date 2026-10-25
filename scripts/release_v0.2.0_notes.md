@@ -12,6 +12,9 @@ Everyone's `~/Downloads` and `~/Desktop` are overflowing digital junkyards. Trad
 
 ## 📦 Downloads & Installation
 
+> **Zero-Dependency Native Desktop Binaries with Embedded PyInstaller Standalone Core**  
+> *Runs out-of-the-box on any computer without requiring Python, Node.js, or external tools.*
+
 ### 🪟 Windows (10 / 11 64-bit)
 | Package | File | Description |
 |---|---|---|
@@ -31,10 +34,10 @@ Everyone's `~/Downloads` and `~/Desktop` are overflowing digital junkyards. Trad
 | Package | File | Description |
 |---|---|---|
 | **DMG Installer (Recommended)** | [📥 **`Idler-0.2.0-arm64.dmg`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.0/Idler-0.2.0-arm64.dmg) | Drag-and-drop disk image installer |
-| **ZIP Archive** | [📥 **`Idler-v0.2.0-mac-arm64.zip`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.0/Idler-v0.2.0-mac-arm64.zip) | Standalone portable `.app` bundle |
+| **ZIP Archive** | [📥 **`Idler-0.2.0-arm64-mac.zip`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.0/Idler-0.2.0-arm64-mac.zip) | Standalone portable `.app` bundle |
 
 **macOS Quickstart:**
-1. Download **`Idler-0.2.0-arm64.dmg`** (or unzip `Idler-v0.2.0-mac-arm64.zip`).
+1. Download **`Idler-0.2.0-arm64.dmg`** (or unzip `Idler-0.2.0-arm64-mac.zip`).
 2. Drag `Idler.app` into your `/Applications` folder.
 3. If macOS Gatekeeper alerts on first launch, run:
    ```bash
@@ -116,12 +119,11 @@ cd electron && npx electron-builder --win nsis portable zip --x64
 
 ## 🔒 Checksums (SHA-256)
 ```text
-7de44229d6c00dfb0b118e1602cf321e65b690ae8eb72bac34e6edec13873c0f  Idler.Setup.0.2.0.exe
-e9c7f77bc60a8d14b06ddc875bcb39a7456ceae640abb4b136adc4b60bd1e498  Idler.0.2.0.exe
-947855195921a632ff84df92bf9a811caa0edc945364c82e38d259a26f67e2cb  Idler-0.2.0-win.zip
-3588d8fb562a6a944a5c04cc2c1b98b635be7fa5eef9f1ab98255e1e5cd09269  Idler-0.2.0-arm64.dmg
-4c482eebc45f95953237e8929e189e3ff83cc9bedacd3e575aaeb698735e0d21  Idler-0.2.0-arm64-mac.zip
-efbb9155ab3b35dbd3d8051bd29c1c0352e48caca7cb5d5a423328f52f5ff8f9  Idler-v0.2.0-mac-arm64.zip
+daf7742978efd2bed77f1f1e4f49265f7844f4eca663ab1d056bb19f91f99610  Idler.Setup.0.2.0.exe
+9b24b679b5bdf8fed9835f26f24c99176fd75de022738ac5bc9f605266124eec  Idler.0.2.0.exe
+ba5fd7190d154c2d02c45da6cf91a250558726e8353f2d32fb64a41bee452ca2  Idler-0.2.0-win.zip
+0d0591302081e7da0bc3e0f467fe5273db58cbb9fbdf559b32c283cfc828e30e  Idler-0.2.0-arm64.dmg
+d68a346fb0e0ff126b4d635fd2286553c63d657d06b6c132654d85f286ddf369  Idler-0.2.0-arm64-mac.zip
 ```
 
 ---
@@ -129,4 +131,3 @@ efbb9155ab3b35dbd3d8051bd29c1c0352e48caca7cb5d5a423328f52f5ff8f9  Idler-v0.2.0-m
 ## 🏆 Hacktoberweek 2026
 Built with ❤️ by **@Kaashviw3spaces** for **Hacktoberweek 2026**.  
 Star ⭐️ the repository and join us in banishing messy Downloads forever!
-
