@@ -29,7 +29,9 @@ import {
   VolumeX,
   ChevronDown,
   ChevronRight,
+  HardDrive,
 } from 'lucide-react';
+import { StorageTreemap } from './components/StorageTreemap';
 import {
   playTaskCompleteChime,
   playMacChime,
@@ -159,7 +161,7 @@ function notifyUser(title: string, body: string) {
 }
 
 export default function App() {
-  const [tab, setTab] = useState<'planner' | 'ledger' | 'duplicates' | 'workflows' | 'projects' | 'workspaces'>('planner');
+  const [tab, setTab] = useState<'planner' | 'ledger' | 'duplicates' | 'workflows' | 'projects' | 'workspaces' | 'storage'>('planner');
   const [viewMode, setViewMode] = useState<'cozy' | 'studio'>(() => {
     if (typeof window !== 'undefined' && (window.idlerDesktop?.isElectron || window.innerWidth <= 480)) {
       return 'cozy';
@@ -1316,6 +1318,27 @@ export default function App() {
         >
           <FolderOpen size={16} />
           Workspaces ({workspaces.length})
+        </button>
+
+        <button
+          onClick={() => setTab('storage')}
+          className={`studio-tab-btn ${tab === 'storage' ? 'studio-tab-active' : ''}`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            border: tab === 'storage' ? '1px solid #38bdf8' : '1px solid transparent',
+            fontSize: '14px',
+            fontWeight: '600',
+            background: tab === 'storage' ? 'rgba(14, 165, 233, 0.16)' : 'transparent',
+            color: tab === 'storage' ? '#38bdf8' : '#94a3b8',
+            cursor: 'pointer',
+          }}
+        >
+          <HardDrive size={16} />
+          Storage Analytics
         </button>
       </nav>
 
@@ -3089,6 +3112,21 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* TAB 7: STORAGE ANALYTICS & VISUAL INSIGHTS */}
+      {tab === 'storage' && (
+        <StorageTreemap
+          activeWorkspace={workspaces.find((w) => w.path === selectedWorkspace) || workspaces[0] || null}
+          workspaces={workspaces}
+          onSelectWorkspace={(ws) => {
+            setSelectedWorkspace(ws.path);
+          }}
+          onActionComplete={(msg) => {
+            addToast('success', msg);
+            loadActions();
+          }}
+        />
       )}
 
       {/* Global Toast Notifications */}

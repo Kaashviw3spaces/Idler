@@ -455,6 +455,60 @@ def test_system_chime_endpoint(client_and_workspace):
     assert win_resp.json()["platform"] == "windows"
 
 
+def test_storage_analytics_endpoints(client_and_workspace, monkeypatch):
+    import os
+    import time
+    client, workspace = client_and_workspace
+
+    # Create test files
+    docs = workspace / "Docs"
+    docs.mkdir()
+    big_file = docs / "massive_dataset.zip"
+    big_file.write_bytes(b"A" * 15000)
+
+    # Set access time to 200 days ago
+    past = time.time() - (200 * 86400)
+    os.utime(big_file, (past, past))
+
+    # Test GET /api/analytics/storage
+    resp = client.get(
+        f"/api/analytics/storage?workspace_path={workspace}&min_large_size_bytes=10000&forgotten_days=180"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_files"] >= 1
+    assert len(data["large_forgotten_files"]) == 1
+    assert data["large_forgotten_files"][0]["name"] == "massive_dataset.zip"
+    assert data["tree"]["file_count"] >= 1
+    assert len(data["category_breakdowns"]) >= 1
+
+    # Test POST /api/analytics/archive
+    arch_resp = client.post(
+        "/api/analytics/archive",
+        json={"workspace_path": str(workspace), "relative_path": "Docs/massive_dataset.zip"}
+    )
+    assert arch_resp.status_code == 200
+    arch_data = arch_resp.json()
+    assert arch_data["status"] == "success"
+    assert (workspace / "Archive" / "massive_dataset.zip").exists()
+
+    # Test POST /api/analytics/trash (with mocked send2trash)
+    trash_target = workspace / "Archive" / "massive_dataset.zip"
+    trashed = []
+    import send2trash
+    monkeypatch.setattr(send2trash, "send2trash", lambda p: trashed.append(Path(p).name))
+
+    trash_resp = client.post(
+        "/api/analytics/trash",
+        json={"workspace_path": str(workspace), "relative_path": "Archive/massive_dataset.zip"}
+    )
+    assert trash_resp.status_code == 200
+    trash_data = trash_resp.json()
+    assert trash_data["status"] == "success"
+    assert "massive_dataset.zip" in trashed
+
+
+
 
 
 

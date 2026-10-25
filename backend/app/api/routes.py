@@ -45,6 +45,16 @@ from backend.app.services.workflows import (
 from backend.app.tools.duplicates import find_duplicates
 from backend.app.tools.scan import scan_directory
 from backend.app.tools.project import inspect_project
+from backend.app.schemas.analytics import (
+    LargeFileArchiveRequest,
+    LargeFileTrashRequest,
+    StorageAnalyticsResponse,
+)
+from backend.app.tools.storage_analytics import (
+    archive_large_file,
+    scan_storage_analytics,
+    trash_large_file,
+)
 
 router = APIRouter(prefix="/api", tags=["Idler Core API"])
 
@@ -764,6 +774,80 @@ def inspect_project_endpoint(
         ws = resolve_workspace(workspace_path)
         return inspect_project(path or ".", ws)
     except (FileNotFoundError, NotADirectoryError) as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/analytics/storage", response_model=StorageAnalyticsResponse)
+def get_storage_analytics(
+    path: Optional[str] = Query(default=".", description="Folder relative to workspace to scan"),
+    workspace_path: Optional[str] = None,
+    min_large_size_bytes: int = Query(default=500 * 1024 * 1024, description="Threshold for large files in bytes"),
+    forgotten_days: int = Query(default=180, description="Minimum days of inactivity"),
+    max_depth: int = Query(default=4, description="Maximum tree depth for Treemap hierarchy"),
+):
+    """
+    Storage Analytics & Visual Insights:
+    - Disk Space Treemap breakdown of folders and file types.
+    - 'Large & Forgotten Files' Hunter (>threshold and inactive > forgotten_days).
+    - Cloud Storage Sync Awareness (cloud-only placeholders vs local copies).
+    """
+    try:
+        ws = resolve_workspace(workspace_path)
+        return scan_storage_analytics(
+            workspace_path=ws,
+            scan_subpath=path or ".",
+            min_large_size_bytes=min_large_size_bytes,
+            forgotten_days=forgotten_days,
+            max_tree_depth=max_depth,
+        )
+    except (FileNotFoundError, NotADirectoryError) as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/analytics/trash")
+def trash_large_file_endpoint(
+    req: LargeFileTrashRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Safely soft-deletes a large forgotten file to system Trash via send2trash.
+    Never permanent deletion. Recorded in Action Ledger.
+    """
+    try:
+        ws = resolve_workspace(req.workspace_path)
+        return trash_large_file(
+            workspace_path=ws,
+            relative_path=req.relative_path,
+            db=db,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/analytics/archive")
+def archive_large_file_endpoint(
+    req: LargeFileArchiveRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Safely moves a large forgotten file to Archive/ folder within workspace.
+    Collision-safe, verified move, recorded in Action Ledger with 1-click Undo support.
+    """
+    try:
+        ws = resolve_workspace(req.workspace_path)
+        return archive_large_file(
+            workspace_path=ws,
+            relative_path=req.relative_path,
+            archive_dir_name=req.archive_dir or "Archive",
+            db=db,
+        )
+    except FileNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

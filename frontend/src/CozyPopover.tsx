@@ -22,7 +22,9 @@ import {
   FileSpreadsheet,
   File,
   Download,
+  HardDrive,
 } from 'lucide-react';
+import { StorageTreemap } from './components/StorageTreemap';
 import {
   PlanResponse,
   ActionRecord,
@@ -55,7 +57,7 @@ interface CozyPopoverProps {
   addToast: (kind: 'success' | 'error' | 'info', message: string) => void;
 }
 
-type CozyTab = 'planner' | 'ledger' | 'duplicates' | 'projects' | 'workflows' | 'workspaces';
+type CozyTab = 'planner' | 'ledger' | 'duplicates' | 'projects' | 'workflows' | 'workspaces' | 'storage';
 
 function fmtBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -348,6 +350,11 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
       label: `Workspaces (${cleanWorkspaces.length})`,
       icon: <FolderOpen size={15} />,
     },
+    {
+      id: 'storage',
+      label: 'Storage Insights',
+      icon: <HardDrive size={15} />,
+    },
   ];
 
   async function handleRunPrompt(queryToRun?: string) {
@@ -535,6 +542,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         return `SAVED WORKFLOWS (${workflows.length})`;
       case 'workspaces':
         return 'ACTIVE FOLDER TO SCAN ON COMPUTER';
+      case 'storage':
+        return 'STORAGE ANALYTICS & INSIGHTS';
     }
   }
 
@@ -1826,6 +1835,23 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                 </>
               )}
             </div>
+          </div>
+        )}
+
+        {/* 7. Storage Analytics Tab */}
+        {activeTab === 'storage' && (
+          <div
+            style={{
+              padding: '6px 2px',
+              animation: 'tabContentIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) ease-out',
+            }}
+          >
+            <StorageTreemap
+              activeWorkspace={cleanWorkspaces.find((w) => w.path === selectedWorkspace) || cleanWorkspaces[0] || null}
+              workspaces={cleanWorkspaces}
+              onSelectWorkspace={(ws) => onSelectWorkspace(ws.path)}
+              onActionComplete={(msg) => addToast('success', msg)}
+            />
           </div>
         )}
       </div>

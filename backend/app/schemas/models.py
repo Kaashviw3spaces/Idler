@@ -10,6 +10,8 @@ class ActionType(str, Enum):
     RENAME_FILE = "rename_file"
     FIND_DUPLICATES = "find_duplicates"
     SUMMARIZE_PROJECT = "summarize_project"
+    TRASH_FILE = "trash_file"
+    ARCHIVE_FILE = "archive_file"
 
 
 class ActionStatus(str, Enum):

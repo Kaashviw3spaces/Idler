@@ -103,3 +103,4 @@ rm -rf "$STAGE" "$ASAR"
 echo ""
 echo "🎉 Windows packages built successfully!"
 ls -lh "$DIR/electron/dist/"*windows*.zip
+

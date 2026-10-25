@@ -11,6 +11,8 @@ import {
   WorkspaceFilesResponse,
   ProjectInspectionResult,
   TrashAllResponse,
+  StorageAnalyticsResponse,
+  AnalyticsMutationResponse,
 } from './types';
 
 const API_BASE = 'http://127.0.0.1:8000/api';
@@ -279,3 +281,65 @@ export async function inspectProject(
   }
   return res.json();
 }
+
+export async function getStorageAnalytics(
+  workspacePath?: string,
+  subpath = '.',
+  minLargeSizeBytes = 500 * 1024 * 1024,
+  forgottenDays = 180,
+  maxDepth = 4
+): Promise<StorageAnalyticsResponse> {
+  const params = new URLSearchParams({
+    path: subpath,
+    min_large_size_bytes: String(minLargeSizeBytes),
+    forgotten_days: String(forgottenDays),
+    max_depth: String(maxDepth),
+  });
+  if (workspacePath) {
+    params.set('workspace_path', workspacePath);
+  }
+  const res = await fetch(`${API_BASE}/analytics/storage?${params.toString()}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to fetch storage analytics');
+  }
+  return res.json();
+}
+
+export async function trashLargeFile(
+  relativePath: string,
+  workspacePath?: string
+): Promise<AnalyticsMutationResponse> {
+  const res = await fetch(`${API_BASE}/analytics/trash`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ relative_path: relativePath, workspace_path: workspacePath || null }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to trash large file');
+  }
+  return res.json();
+}
+
+export async function archiveLargeFile(
+  relativePath: string,
+  workspacePath?: string,
+  archiveDir = 'Archive'
+): Promise<AnalyticsMutationResponse> {
+  const res = await fetch(`${API_BASE}/analytics/archive`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      relative_path: relativePath,
+      workspace_path: workspacePath || null,
+      archive_dir: archiveDir,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to archive large file');
+  }
+  return res.json();
+}
+
