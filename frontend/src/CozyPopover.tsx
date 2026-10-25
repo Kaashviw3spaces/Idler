@@ -300,6 +300,43 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     return counts;
   }, [activeFilesList]);
 
+  // Compute sortable unorganized loose files for root and each subfolder (only >0 actions qualify)
+  const sortableCounts = useMemo(() => {
+    const rootName = activeWsObj?.name?.toLowerCase() || '';
+    let rootSortable = 0;
+    const subfolderSortable: Record<string, number> = {};
+
+    for (const f of activeFilesList) {
+      const rel = f.relative_path || f.name;
+      const parts = rel.split('/').filter(Boolean);
+      const cat = (f.category || '').toLowerCase();
+
+      if (parts.length === 1) {
+        // Loose file directly in workspace root
+        if (rootName !== cat && !STANDARD_CATEGORIES.has(rootName)) {
+          rootSortable++;
+        }
+      } else if (parts.length === 2) {
+        // Loose file directly inside a subfolder (e.g. Idler/pyproject.toml)
+        const subName = parts[0];
+        // If subfolder is a category folder matching file type (e.g. Images/photo.png), it is already sorted!
+        if (subName.toLowerCase() !== cat && !STANDARD_CATEGORIES.has(subName.toLowerCase())) {
+          subfolderSortable[subName] = (subfolderSortable[subName] || 0) + 1;
+        }
+      }
+    }
+
+    return { rootSortable, subfolderSortable };
+  }, [activeFilesList, activeWsObj?.name]);
+
+  // Only suggest subfolders that CAN have proposed actions (> 0 sortable loose files)
+  const sortableSubfolders = useMemo(() => {
+    return (activeWsObj?.subdirectories || []).filter((sub) => {
+      if (STANDARD_CATEGORIES.has(sub.name.toLowerCase())) return false;
+      return (sortableCounts.subfolderSortable[sub.name] || 0) > 0;
+    });
+  }, [activeWsObj?.subdirectories, sortableCounts.subfolderSortable]);
+
   // Dynamic window resizing based on content height
   useEffect(() => {
     if (!containerRef.current) return;
@@ -598,10 +635,10 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         border: '1px solid rgba(255, 255, 255, 0.14)',
         borderRadius: '24px',
         boxShadow: '0 24px 60px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05)',
-        padding: '16px',
+        padding: '14px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '12px',
+        gap: '10px',
         color: '#f8fafc',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
         position: 'relative',
@@ -716,128 +753,75 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         </button>
       </div>
 
-      {/* Subfolder Scope Selector: Allows 1-click targeting of project subfolders like Idler */}
-      {(() => {
-        const projectSubdirs = (activeWsObj?.subdirectories || []).filter(
-          (sub) => !STANDARD_CATEGORIES.has(sub.name.toLowerCase())
-        );
-        if (projectSubdirs.length === 0) return null;
-        return (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              marginTop: '5px',
-              padding: '0 2px',
-              overflowX: 'auto',
-              scrollbarWidth: 'none',
-            }}
-          >
-            <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px', flexShrink: 0 }}>
-              Scope:
-            </span>
-            <button
-              onClick={() => setSelectedSubfolder(null)}
-              title={`Sort only loose files directly in ${activeWsObj.name} (subfolders preserved)`}
-              style={{
-                background: selectedSubfolder === null ? 'rgba(37, 99, 235, 0.35)' : 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid ' + (selectedSubfolder === null ? '#3b82f6' : 'rgba(255, 255, 255, 0.1)'),
-                borderRadius: '6px',
-                padding: '2px 8px',
-                fontSize: '10px',
-                fontWeight: selectedSubfolder === null ? '700' : '500',
-                color: selectedSubfolder === null ? '#ffffff' : '#cbd5e1',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                transition: 'all 0.15s ease',
-              }}
-            >
-              Entire {activeWsObj.name}
-            </button>
-            {projectSubdirs.map((sub) => {
-              const isSel = selectedSubfolder === sub.name;
-              return (
-                <button
-                  key={sub.name}
-                  onClick={() => setSelectedSubfolder(isSel ? null : sub.name)}
-                  title={`Sort files within ${sub.name} into its own subfolders (code, images, etc.)`}
-                  style={{
-                    background: isSel ? 'rgba(37, 99, 235, 0.35)' : 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid ' + (isSel ? '#3b82f6' : 'rgba(255, 255, 255, 0.1)'),
-                    borderRadius: '6px',
-                    padding: '2px 8px',
-                    fontSize: '10px',
-                    fontWeight: isSel ? '700' : '500',
-                    color: isSel ? '#ffffff' : '#cbd5e1',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '3px',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <span>📁 {sub.name}</span>
-                  <span style={{ opacity: 0.65, fontSize: '9px' }}>({sub.files_count})</span>
-                </button>
-              );
-            })}
-          </div>
-        );
-      })()}
-
-      {/* 2. Center Hero Mascot: Pure White & Cool Sloth with Ambient Breathing Glow */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '4px 0 0px 0',
-        }}
-      >
+      {/* Subfolder Scope Selector: Only shows subfolders that CAN have proposed actions (>0 sortable files) */}
+      {sortableSubfolders.length > 0 && (
         <div
           style={{
-            position: 'relative',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            animation: 'slothFloat 3s ease-in-out infinite',
+            gap: '5px',
+            marginTop: '2px',
+            padding: '0 2px',
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
           }}
         >
-          {/* Ambient Breathing Glow */}
-          <div
+          <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px', flexShrink: 0 }}>
+            Scope:
+          </span>
+          <button
+            onClick={() => setSelectedSubfolder(null)}
+            title={`Sort loose files directly in ${activeWsObj.name}`}
             style={{
-              position: 'absolute',
-              width: '56px',
-              height: '56px',
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%)',
-              pointerEvents: 'none',
-              animation: 'slothBreathingGlow 2.5s ease-in-out infinite',
+              background: selectedSubfolder === null ? 'rgba(37, 99, 235, 0.35)' : 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid ' + (selectedSubfolder === null ? '#3b82f6' : 'rgba(255, 255, 255, 0.1)'),
+              borderRadius: '6px',
+              padding: '2px 8px',
+              fontSize: '10px',
+              fontWeight: selectedSubfolder === null ? '700' : '500',
+              color: selectedSubfolder === null ? '#ffffff' : '#cbd5e1',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              transition: 'all 0.15s ease',
             }}
-          />
-          <img
-            src="./sloth.png"
-            alt="Idler Cool Sloth"
-            style={{
-              width: '46px',
-              height: '46px',
-              objectFit: 'contain',
-              filter: 'drop-shadow(0 2px 10px rgba(255, 255, 255, 0.45)) drop-shadow(0 4px 16px rgba(0, 0, 0, 0.8))',
-              transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-            onError={(e) => {
-              (e.currentTarget as HTMLElement).style.display = 'none';
-            }}
-          />
+          >
+            Entire {activeWsObj.name} {sortableCounts.rootSortable > 0 ? `(${sortableCounts.rootSortable})` : ''}
+          </button>
+          {sortableSubfolders.map((sub) => {
+            const isSel = selectedSubfolder === sub.name;
+            const count = sortableCounts.subfolderSortable[sub.name] || 0;
+            return (
+              <button
+                key={sub.name}
+                onClick={() => setSelectedSubfolder(isSel ? null : sub.name)}
+                title={`Sort ${count} loose file(s) in ${sub.name} into its own subfolders (code, images, etc.)`}
+                style={{
+                  background: isSel ? 'rgba(37, 99, 235, 0.35)' : 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid ' + (isSel ? '#3b82f6' : 'rgba(255, 255, 255, 0.1)'),
+                  borderRadius: '6px',
+                  padding: '2px 8px',
+                  fontSize: '10px',
+                  fontWeight: isSel ? '700' : '500',
+                  color: isSel ? '#ffffff' : '#cbd5e1',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>📁 {sub.name}</span>
+                <span style={{ opacity: 0.7, fontSize: '9px', fontWeight: '700', color: isSel ? '#ffffff' : '#60a5fa' }}>({count})</span>
+              </button>
+            );
+          })}
         </div>
-      </div>
+      )}
 
-      {/* 3. Segmented Icon Tab Bar with Enhanced Animations */}
+      {/* 2. Segmented Icon Tab Bar with Enhanced Animations */}
       <div
         onMouseLeave={() => setHoveredTab(null)}
         style={{
@@ -1936,7 +1920,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                                 >
                                   Open
                                 </button>
-                                {!STANDARD_CATEGORIES.has(sub.name.toLowerCase()) && (
+                                {!STANDARD_CATEGORIES.has(sub.name.toLowerCase()) && (sortableCounts.subfolderSortable[sub.name] || 0) > 0 && (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -1944,7 +1928,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                                       setActiveTab('planner');
                                       handleRunPrompt(`Organize all unorganized files in ${sub.name} folder by category`, sub.name);
                                     }}
-                                    title={`Sort files within ${sub.name} into its own subfolders (code, images, etc.)`}
+                                    title={`Sort ${sortableCounts.subfolderSortable[sub.name]} loose file(s) in ${sub.name} into its own subfolders (code, images, etc.)`}
                                     style={{
                                       background: 'rgba(16, 185, 129, 0.2)',
                                       border: '1px solid rgba(52, 211, 153, 0.35)',
@@ -1956,7 +1940,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                                       cursor: 'pointer',
                                     }}
                                   >
-                                    Sort
+                                    Sort ({sortableCounts.subfolderSortable[sub.name]})
                                   </button>
                                 )}
                               </div>
