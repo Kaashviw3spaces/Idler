@@ -108,6 +108,33 @@ function getDestinationSubfolder(destination?: string): string {
   return clean || '(root)';
 }
 
+export const BroomIcon: React.FC<{ size?: number; color?: string; style?: React.CSSProperties }> = ({
+  size = 14,
+  color = '#ffffff',
+  style,
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={style}
+  >
+    {/* Clean broom handle */}
+    <line x1="20" y1="3.5" x2="11.5" y2="12" />
+    {/* Broom collar band */}
+    <line x1="9" y1="11.5" x2="13" y2="15.5" />
+    {/* Flared bristle sweep */}
+    <path d="M9.5 12 L4.5 16.5 C3.5 17.5 3.8 19.2 5 20.4 C6.2 21.6 8 21.8 9 20.8 L12.5 15" />
+    {/* Bristle texture slit */}
+    <line x1="6.8" y1="17.2" x2="8.2" y2="19.8" />
+  </svg>
+);
+
 export const CozyPopover: React.FC<CozyPopoverProps> = ({
   workspaces,
   selectedWorkspace,
@@ -697,7 +724,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               flexShrink: 0,
             }}
           >
-            <Sparkles size={13} color="#ffffff" />
+            <BroomIcon size={14} color="#ffffff" />
           </div>
 
           <div style={{ minWidth: 0, flex: 1 }}>
