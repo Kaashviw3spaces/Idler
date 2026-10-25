@@ -541,6 +541,13 @@ Once installed, future releases are downloaded in the background automatically. 
 | **Portable Executable** | [📥 **`Idler.0.2.4.exe`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.4/Idler.0.2.4.exe) | `.exe` | Single-file portable executable — run immediately with zero installation |
 | **Portable ZIP** | [📥 **`Idler-0.2.4-win.zip`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.4/Idler-0.2.4-win.zip) | `.zip` | Standalone unpacked folder archive |
 
+> **Windows Quickstart**:
+> 1. Download **`Idler.Setup.0.2.4.exe`** (recommended) or single-file portable **`Idler.0.2.4.exe`**.
+> 2. Run the executable.  
+>    *(If Windows SmartScreen prompts "Windows protected your PC", click **"More info"** → **"Run anyway"**).*
+> 3. Idler will launch immediately and nestle into your bottom-right **Windows Taskbar System Tray** (look for the cute sloth icon near the clock or inside the `^` overflow chevron).
+> 4. Press **`Ctrl+Shift+I`** (or **`Ctrl+P`** for pinned Screen Record mode) to toggle Idler anytime!
+
 ---
 
 ### 🍏 macOS (Apple Silicon / arm64)
