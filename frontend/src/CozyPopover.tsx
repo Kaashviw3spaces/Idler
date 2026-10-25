@@ -24,7 +24,7 @@ import {
   Download,
   HardDrive,
 } from 'lucide-react';
-import { StorageTreemap } from './components/StorageTreemap';
+import { CompactStorageAnalytics } from './components/CompactStorageAnalytics';
 import { FilePreviewModal, FilePreviewTarget } from './components/FilePreviewModal';
 import {
   PlanResponse,
@@ -395,6 +395,9 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     if (!currentPlan) return;
     setIsExecuting(true);
     try {
+      // Step 1: Explicitly approve the plan
+      await api.approveTask(currentPlan.task_id);
+      // Step 2: Execute the approved task
       const res = await api.executeTask(currentPlan.task_id);
       setCurrentPlan(null);
       setPrompt('');
@@ -1995,12 +1998,11 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         {activeTab === 'storage' && (
           <div
             style={{
-              padding: '6px 2px',
+              padding: '4px 2px',
               animation: 'tabContentIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) ease-out',
             }}
           >
-            <StorageTreemap
-              compact={true}
+            <CompactStorageAnalytics
               activeWorkspace={cleanWorkspaces.find((w) => w.path === selectedWorkspace) || cleanWorkspaces[0] || null}
               workspaces={cleanWorkspaces}
               onSelectWorkspace={(ws) => onSelectWorkspace(ws.path)}
