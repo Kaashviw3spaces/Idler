@@ -1,6 +1,6 @@
 {
   "name": "idler-desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Idler — Native macOS Menu-Bar & Windows Tray Desktop App",
   "main": "main.cjs",
   "scripts": {
