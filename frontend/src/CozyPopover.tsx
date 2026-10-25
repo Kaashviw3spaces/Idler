@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
-  Sparkles,
   History,
   Search,
   Code2,
@@ -110,6 +109,36 @@ function getDestinationSubfolder(destination?: string): string {
   }
   return clean || '(root)';
 }
+
+export const BroomIcon: React.FC<{ size?: number; color?: string; style?: React.CSSProperties; className?: string }> = ({
+  size = 15,
+  color = 'currentColor',
+  style,
+  className,
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={style}
+    className={className}
+  >
+    {/* Clean pole handle */}
+    <line x1="12" y1="2.5" x2="12" y2="12" />
+    {/* Broom collar band */}
+    <line x1="9" y1="12.5" x2="15" y2="12.5" />
+    {/* Flared straw head */}
+    <path d="M9.5 13L5.5 20.2C5.2 21 5.8 21.5 6.8 21.5H17.2C18.2 21.5 18.8 21 18.5 20.2L14.5 13" />
+    {/* Straw texture lines */}
+    <line x1="10" y1="16.5" x2="9.5" y2="21.5" />
+    <line x1="14" y1="16.5" x2="14.5" y2="21.5" />
+  </svg>
+);
 
 export const CozyPopover: React.FC<CozyPopoverProps> = ({
   isBackendOffline = false,
@@ -502,8 +531,8 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   const tabs: { id: CozyTab; label: string; icon: React.ReactNode }[] = [
     {
       id: 'planner',
-      label: 'Scan & Plan',
-      icon: <Sparkles size={15} />,
+      label: 'Organize',
+      icon: <BroomIcon size={15} />,
     },
     {
       id: 'ledger',
@@ -796,23 +825,27 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
-          <img
-            src="/sloth.png"
-            alt="Idler"
-            className="sloth-mascot-glow"
+          <div
             style={{
-              width: '28px',
-              height: '28px',
-              objectFit: 'contain',
+              width: '26px',
+              height: '26px',
+              borderRadius: '7px',
+              background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               flexShrink: 0,
+              boxShadow: '0 2px 8px rgba(37, 99, 235, 0.4)',
               cursor: 'pointer',
             }}
             onClick={() => {
               if (onOpenStudio) onOpenStudio();
               else if (window.idlerDesktop?.openStudio) window.idlerDesktop.openStudio();
             }}
-            title="Idler Sloth Mascot — Click to open full Studio"
-          />
+            title="Idler Housekeeping Broom — Click to open full Studio"
+          >
+            <BroomIcon size={15} color="#ffffff" />
+          </div>
 
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -896,9 +929,13 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               cursor: 'pointer',
               boxShadow: '0 2px 8px rgba(37, 99, 235, 0.35)',
               whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
             }}
           >
-            {isPlanning ? 'Thinking…' : 'Quick Sort'}
+            <BroomIcon size={13} color="#ffffff" />
+            <span>{isPlanning ? 'Thinking…' : 'Quick Sort'}</span>
           </button>
         </div>
       </div>
