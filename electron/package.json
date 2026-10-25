@@ -41,6 +41,12 @@
     "directories": {
       "output": "dist"
     },
+    "extraResources": [
+      {
+        "from": "../backend/dist/idler-core",
+        "to": "backend"
+      }
+    ],
     "files": [
       "main.cjs",
       "preload.cjs",

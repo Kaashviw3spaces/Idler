@@ -55,6 +55,10 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
+# PyInstaller
+*.spec
+backend/dist/
+
 # Workspace data
 test_workspace/*
 !test_workspace/.gitkeep

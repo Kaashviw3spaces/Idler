@@ -105,6 +105,22 @@ else:
 
 
 if __name__ == "__main__":
+    import multiprocessing
+    import sys
     import uvicorn
-    uvicorn.run("backend.app.main:app", host=settings.host, port=settings.port, reload=True)
+
+    multiprocessing.freeze_support()
+
+    port = settings.port
+    host = settings.host
+    for i, arg in enumerate(sys.argv):
+        if arg == "--port" and i + 1 < len(sys.argv):
+            try:
+                port = int(sys.argv[i + 1])
+            except ValueError:
+                pass
+        elif arg == "--host" and i + 1 < len(sys.argv):
+            host = sys.argv[i + 1]
+
+    uvicorn.run(app, host=host, port=port)
 

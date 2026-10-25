@@ -1,6 +1,14 @@
 // Ensure Electron does not inherit node CLI mode from parent shell
 delete process.env.ELECTRON_RUN_AS_NODE;
 
+// Global process exception handlers to prevent native Electron JS Error dialogs
+process.on('uncaughtException', (err) => {
+  console.error('[Main Process Uncaught Exception]:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Main Process Unhandled Rejection]:', reason);
+});
+
 const { app, BrowserWindow, Tray, Menu, ipcMain, shell, Notification, nativeImage, screen, dialog } = require('electron');
 const path = require('path');
 const { spawn, exec } = require('child_process');
@@ -268,25 +276,69 @@ function ensureBackend() {
       console.log('FastAPI backend is active.');
     }
   }).on('error', () => {
-    console.log('Starting FastAPI backend server...');
-    const candidates = [
-      path.join(__dirname, '..', 'backend', 'venv', 'bin', 'python'),
-      '/Users/kashvi/Desktop/Idler/backend/venv/bin/python',
-      path.join(process.resourcesPath || '', 'backend', 'venv', 'bin', 'python'),
-    ];
-    let pythonBin = 'python3';
-    let workDir = '/Users/kashvi/Desktop/Idler';
-    for (const c of candidates) {
-      if (require('fs').existsSync(c)) {
-        pythonBin = c;
-        workDir = path.resolve(path.dirname(c), '..', '..');
-        break;
+    console.log('Starting Idler Core backend server...');
+    const exeName = process.platform === 'win32' ? 'idler-core.exe' : 'idler-core';
+    const isWin = process.platform === 'win32';
+    const pyVenvRel = isWin ? path.join('Scripts', 'python.exe') : path.join('bin', 'python');
+
+    let backendBin = '';
+    let spawnArgs = [];
+    let workDir = undefined;
+
+    if (app.isPackaged) {
+      const packagedCore = path.join(process.resourcesPath, 'backend', exeName);
+      if (require('fs').existsSync(packagedCore)) {
+        backendBin = packagedCore;
+        spawnArgs = ['--host', '127.0.0.1', '--port', '8000'];
+        workDir = path.dirname(packagedCore);
       }
     }
-    backendProcess = spawn(pythonBin, ['-m', 'uvicorn', 'backend.app.main:app', '--host', '127.0.0.1', '--port', '8000'], {
-      cwd: workDir,
-      stdio: 'ignore',
-    });
+
+    if (!backendBin) {
+      const candidates = [
+        path.join(__dirname, '..', 'backend', 'dist', 'idler-core', exeName),
+        path.join(process.resourcesPath || '', 'backend', exeName),
+        path.join(__dirname, '..', 'backend', 'venv', pyVenvRel),
+      ];
+      for (const c of candidates) {
+        if (require('fs').existsSync(c)) {
+          backendBin = c;
+          if (c.endsWith(exeName)) {
+            spawnArgs = ['--host', '127.0.0.1', '--port', '8000'];
+            workDir = path.dirname(c);
+          } else {
+            spawnArgs = ['-m', 'uvicorn', 'backend.app.main:app', '--host', '127.0.0.1', '--port', '8000'];
+            workDir = path.resolve(path.dirname(c), '..', '..');
+          }
+          break;
+        }
+      }
+    }
+
+    if (!backendBin) {
+      backendBin = isWin ? 'python' : 'python3';
+      spawnArgs = ['-m', 'uvicorn', 'backend.app.main:app', '--host', '127.0.0.1', '--port', '8000'];
+    }
+
+    try {
+      backendProcess = spawn(backendBin, spawnArgs, {
+        cwd: (workDir && require('fs').existsSync(workDir)) ? workDir : undefined,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+
+      // CRITICAL: Prevent the "JS error" pop-up if spawn fails
+      backendProcess.on('error', (err) => {
+        console.error('Backend process failed to spawn:', err);
+      });
+
+      backendProcess.on('exit', (code, signal) => {
+        console.log(`Backend process exited with code ${code}, signal ${signal}`);
+        backendProcess = null;
+      });
+    } catch (err) {
+      console.error('Failed to launch backend process safely:', err);
+    }
   });
 }
 

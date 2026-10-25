@@ -832,6 +832,8 @@ export default function App() {
       <div style={{ padding: 0, margin: 0, background: 'transparent' }}>
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
         <CozyPopover
+          isBackendOffline={isBackendOffline}
+          onRetryConnection={refreshAll}
           workspaces={workspaces}
           selectedWorkspace={selectedWorkspace}
           onSelectWorkspace={setSelectedWorkspace}

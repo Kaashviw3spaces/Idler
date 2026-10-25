@@ -40,6 +40,8 @@ import { SoundPlatform, playTaskCompleteChime } from './sound';
 import * as api from './api';
 
 interface CozyPopoverProps {
+  isBackendOffline?: boolean;
+  onRetryConnection?: () => void;
   workspaces: WorkspaceItem[];
   selectedWorkspace: string;
   onSelectWorkspace: (path: string) => void;
@@ -107,7 +109,9 @@ function getDestinationSubfolder(destination?: string): string {
 }
 
 export const CozyPopover: React.FC<CozyPopoverProps> = ({
-  workspaces,
+  isBackendOffline = false,
+  onRetryConnection,
+  workspaces = [],
   selectedWorkspace,
   onSelectWorkspace,
   actions,
@@ -185,15 +189,15 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   }, [selectedWorkspace]);
 
   // Clean workspaces excluding any test workspaces
-  const cleanWorkspaces = workspaces.filter(
-    (w) => !w.path.toLowerCase().includes('test_workspace') && !w.name.toLowerCase().includes('test_workspace')
+  const cleanWorkspaces = (workspaces || []).filter(
+    (w) => !w?.path?.toLowerCase().includes('test_workspace') && !w?.name?.toLowerCase().includes('test_workspace')
   );
 
   const effectiveWorkspace = selectedWorkspace || (
-    cleanWorkspaces.find((w) => w.name.toLowerCase() === 'downloads')?.path || cleanWorkspaces[0]?.path || ''
+    cleanWorkspaces.find((w) => (w?.name || '').toLowerCase() === 'downloads')?.path || cleanWorkspaces[0]?.path || ''
   );
 
-  const activeWsObj = cleanWorkspaces.find((w) => w.path === effectiveWorkspace) || cleanWorkspaces[0];
+  const activeWsObj = cleanWorkspaces.find((w) => w?.path === effectiveWorkspace) || cleanWorkspaces[0];
 
   // Auto-synchronize active workspace if selectedWorkspace is empty
   useEffect(() => {
@@ -423,6 +427,10 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   ];
 
   async function handleRunPrompt(queryToRun?: string, subfolderOverride?: string | null) {
+    if (isBackendOffline) {
+      addToast('error', 'Idler Core is initializing or offline. Click Retry Connection.');
+      return;
+    }
     const q = queryToRun || prompt;
     if (!q.trim()) return;
     setIsPlanning(true);
@@ -792,6 +800,55 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               </option>
             ))}
           </select>
+        </div>
+      )}
+
+      {/* Backend Offline / Initializing Notification Banner */}
+      {isBackendOffline && (
+        <div
+          style={{
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            borderRadius: '12px',
+            padding: '8px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+            <span style={{ fontSize: '13px', flexShrink: 0 }}>⚡</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '11px', fontWeight: '600', color: '#fca5a5', lineHeight: '1.2' }}>
+                Idler Core is initializing or offline
+              </div>
+              <div style={{ fontSize: '10px', color: '#f87171', opacity: 0.85 }}>
+                Local engine connecting...
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              if (onRetryConnection) {
+                onRetryConnection();
+              }
+            }}
+            style={{
+              background: '#2563eb',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '4px 10px',
+              color: '#ffffff',
+              fontSize: '11px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            Retry Connection
+          </button>
         </div>
       )}
 
