@@ -499,4 +499,32 @@ b7c58075bfce16f4180e306125f06b29196cdfc4512674c27a89c5a1625d6eed  Idler-0.2.2-ar
 0d94e0d585b7c36fc58f32a4415d060e799bc584731ba91856f00f571079b946  Idler-0.2.2-arm64-mac.zip
 ```
 
+---
+
+## 📦 Official Releases & Downloads (v0.2.3)
+
+> **Seamless In-App Auto-Updates (Zero-Redownload), Automatic Background Downloader & Instant Restart**  
+> *Users never need to manually download or reinstall updates again! Idler automatically checks GitHub Releases, downloads updates with live percentage indicators, and applies them seamlessly with 1-click restart on both macOS & Windows.*
+
+### 🪟 Windows (10 / 11 64-bit)
+
+| Package | Download Link | Type | Description |
+|---|---|---|---|
+| **Installer (Recommended)** | [📥 **`Idler.Setup.0.2.3.exe`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.3/Idler.Setup.0.2.3.exe) | `.exe` | One-click setup installer with Start Menu, System Tray & Background Auto-Updates |
+| **Portable Executable** | [📥 **`Idler.0.2.3.exe`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.3/Idler.0.2.3.exe) | `.exe` | Single-file portable executable — run immediately with zero installation |
+| **Portable ZIP** | [📥 **`Idler-0.2.3-win.zip`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.3/Idler-0.2.3-win.zip) | `.zip` | Standalone unpacked folder archive |
+
+---
+
+### 🍏 macOS (Apple Silicon / arm64)
+
+| Package | Download Link | Type | Description |
+|---|---|---|---|
+| **DMG Installer (Recommended)** | [📥 **`Idler-0.2.3-arm64.dmg`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.3/Idler-0.2.3-arm64.dmg) | `.dmg` | Native drag-and-drop disk image installer |
+| **ZIP Archive** | [📥 **`Idler-0.2.3-arm64-mac.zip`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.3/Idler-0.2.3-arm64-mac.zip) | `.zip` | Standalone portable `.app` bundle |
+
+**Auto-Update Note:**
+Once installed, future releases are downloaded in the background automatically. Whenever a new version is published, an in-app banner with `[Restart]` will prompt you to apply it in 1 click!
+
+
 

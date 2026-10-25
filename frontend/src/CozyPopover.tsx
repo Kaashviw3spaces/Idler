@@ -233,8 +233,16 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
 
   // Auto-updater status state
   const [updateStatus, setUpdateStatus] = useState<AutoUpdateStatus>({ status: 'idle' });
+  const [appVersion, setAppVersion] = useState<string>('0.2.2');
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 
   useEffect(() => {
+    if (window.idlerDesktop?.getAppVersion) {
+      window.idlerDesktop.getAppVersion().then((v) => {
+        if (v) setAppVersion(v);
+      }).catch(() => {});
+    }
+
     if (window.idlerDesktop?.getUpdateStatus) {
       window.idlerDesktop.getUpdateStatus().then((s) => {
         if (s) setUpdateStatus(s);
@@ -251,6 +259,28 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
       return () => unsub();
     }
   }, [addToast]);
+
+  const handleManualCheckUpdate = async () => {
+    if (isCheckingUpdate) return;
+    setIsCheckingUpdate(true);
+    addToast('info', '🔍 Checking for updates...');
+    try {
+      if (window.idlerDesktop?.checkForUpdates) {
+        const res = await window.idlerDesktop.checkForUpdates();
+        if (res?.updateAvailable) {
+          addToast('success', `🚀 Update v${res.version} found! Downloading in background...`);
+        } else if (res?.success) {
+          addToast('info', `✅ Idler is up to date.`);
+        } else if (res?.error) {
+          addToast('error', `Update check failed: ${res.error}`);
+        }
+      }
+    } catch (e: any) {
+      addToast('error', `Update check failed: ${e?.message || 'Network error'}`);
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
 
   // Screen Record Mode / Pin Window state
   const [isPinned, setIsPinned] = useState(() => {
@@ -2472,6 +2502,37 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         >
           <Power size={15} color="#8a8790" />
           <span>Quit</span>
+        </button>
+      </div>
+
+      {/* Version & Auto-Update Check Bar */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 4px',
+          fontSize: '10px',
+          color: '#64748b',
+          marginTop: '-2px',
+        }}
+      >
+        <span>Idler v{appVersion}</span>
+        <button
+          onClick={handleManualCheckUpdate}
+          disabled={isCheckingUpdate || updateStatus.status === 'downloading'}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: '#38bdf8',
+            fontSize: '10px',
+            cursor: 'pointer',
+            padding: 0,
+            textDecoration: 'underline',
+            opacity: isCheckingUpdate ? 0.7 : 1,
+          }}
+        >
+          {isCheckingUpdate ? 'Checking for updates…' : 'Check for updates'}
         </button>
       </div>
 

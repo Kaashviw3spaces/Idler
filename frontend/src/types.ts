@@ -240,7 +240,7 @@ declare global {
       selectFolder?: () => Promise<string | null>;
       resizeHeight?: (height: number) => void;
       onWindowShown?: (callback: () => void) => () => void;
-      checkForUpdates?: () => Promise<{ success: boolean; updateInfo?: any; error?: string }>;
+      checkForUpdates?: () => Promise<{ success: boolean; updateInfo?: any; error?: string; updateAvailable?: boolean; version?: string }>;
       quitAndInstallUpdate?: () => Promise<boolean>;
       getAppVersion?: () => Promise<string>;
       getUpdateStatus?: () => Promise<AutoUpdateStatus>;

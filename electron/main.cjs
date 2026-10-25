@@ -14,91 +14,13 @@ const path = require('path');
 const { spawn, exec } = require('child_process');
 const http = require('http');
 
-let autoUpdater = null;
-try {
-  const updaterModule = require('electron-updater');
-  autoUpdater = updaterModule.autoUpdater;
-} catch (e) {
-  console.warn('electron-updater not loaded:', e.message);
-}
+const updater = require('./updater.cjs');
 
 let tray = null;
 let mainWindow = null;
 let backendProcess = null;
 let isDialogOpen = false;
 let isPinned = false;
-
-let updateStatus = {
-  status: 'idle', // 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'error' | 'not-available'
-  version: null,
-  progress: 0,
-  error: null,
-};
-
-function broadcastUpdateStatus() {
-  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.send('auto-update-status', updateStatus);
-  }
-}
-
-function initAutoUpdater() {
-  if (!autoUpdater) return;
-
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-
-  autoUpdater.on('checking-for-update', () => {
-    console.log('[AutoUpdater]: Checking for update...');
-    updateStatus = { status: 'checking', version: null, progress: 0, error: null };
-    broadcastUpdateStatus();
-  });
-
-  autoUpdater.on('update-available', (info) => {
-    console.log('[AutoUpdater]: Update available:', info.version);
-    updateStatus = { status: 'available', version: info.version, progress: 0, error: null };
-    broadcastUpdateStatus();
-    if (Notification.isSupported()) {
-      new Notification({
-        title: '🦥 Idler Update Available',
-        body: `Version v${info.version} is downloading in the background...`,
-      }).show();
-    }
-  });
-
-  autoUpdater.on('update-not-available', (info) => {
-    console.log('[AutoUpdater]: Idler is up to date.');
-    updateStatus = { status: 'not-available', version: info?.version || app.getVersion(), progress: 0, error: null };
-    broadcastUpdateStatus();
-  });
-
-  autoUpdater.on('error', (err) => {
-    console.warn('[AutoUpdater Warning]:', err ? err.message : 'Unknown error');
-    updateStatus = { status: 'error', version: null, progress: 0, error: err ? err.message : 'Update check failed' };
-    broadcastUpdateStatus();
-  });
-
-  autoUpdater.on('download-progress', (progressObj) => {
-    updateStatus = {
-      status: 'downloading',
-      version: updateStatus.version,
-      progress: Math.round(progressObj.percent || 0),
-      error: null,
-    };
-    broadcastUpdateStatus();
-  });
-
-  autoUpdater.on('update-downloaded', (info) => {
-    console.log('[AutoUpdater]: Update downloaded:', info.version);
-    updateStatus = { status: 'downloaded', version: info.version, progress: 100, error: null };
-    broadcastUpdateStatus();
-    if (Notification.isSupported()) {
-      new Notification({
-        title: '🦥 Idler Update Ready!',
-        body: `v${info.version} is ready. Restart Idler to apply.`,
-      }).show();
-    }
-  });
-}
 
 const POPOVER_WIDTH = 380;
 const POPOVER_HEIGHT = 610;
@@ -352,11 +274,9 @@ function updateTrayMenu() {
     {
       label: 'Check for Updates...',
       click: () => {
-        if (autoUpdater) {
-          autoUpdater.checkForUpdatesAndNotify().catch((err) => {
-            console.warn('[AutoUpdater]:', err.message);
-          });
-        }
+        updater.checkForUpdates().catch((err) => {
+          console.warn('[AutoUpdater]:', err.message);
+        });
       },
     },
     { type: 'separator' },
@@ -533,20 +453,13 @@ ipcMain.handle('select-folder', async () => {
 });
 
 ipcMain.handle('check-for-updates', async () => {
-  if (!autoUpdater) return { success: false, error: 'Auto-updater not initialized' };
-  try {
-    const result = await autoUpdater.checkForUpdates();
-    return { success: true, updateInfo: result?.updateInfo };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
+  return updater.checkForUpdates();
 });
 
 ipcMain.handle('quit-and-install-update', () => {
-  if (!autoUpdater) return false;
-  app.isQuitting = true;
-  autoUpdater.quitAndInstall();
-  return true;
+  return updater.quitAndInstallUpdate(() => {
+    if (backendProcess) backendProcess.kill();
+  });
 });
 
 ipcMain.handle('get-app-version', () => {
@@ -554,7 +467,7 @@ ipcMain.handle('get-app-version', () => {
 });
 
 ipcMain.handle('get-update-status', () => {
-  return updateStatus;
+  return updater.getUpdateStatus();
 });
 
 ipcMain.handle('set-pinned', (e, pinned) => {
@@ -587,16 +500,9 @@ app.whenReady().then(() => {
   ensureBackend();
   createWindow();
   createTray();
-  initAutoUpdater();
-
-  // Auto-check for updates after 6 seconds in packaged mode
-  setTimeout(() => {
-    if (autoUpdater && app.isPackaged) {
-      autoUpdater.checkForUpdatesAndNotify().catch((err) => {
-        console.log('[AutoUpdater Startup Check]:', err?.message);
-      });
-    }
-  }, 6000);
+  updater.initAutoUpdater(mainWindow, () => {
+    if (backendProcess) backendProcess.kill();
+  });
 });
 
 app.on('activate', () => {
