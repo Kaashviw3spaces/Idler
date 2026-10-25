@@ -1,4 +1,4 @@
-# 🦥 IDLER
+# 🦥 Idler
 
 <p align="center">
   <Idler — Your digital housekeeper" width="100%" />
@@ -82,7 +82,7 @@ IDLER turns requests like these into structured plans that can be checked before
 
 ---
 
-## 🧹 What chores can IDLER help with?
+## 🧹 What chores can Idler help with?
 
 <table>
   <tr>
@@ -173,7 +173,7 @@ The sloth may be a little confused sometimes. The file permissions shouldn't be.
 
 Your computer contains more than files. It might contain personal documents, private work, passwords, or information you wouldn't send to a stranger.
 
-IDLER is designed around a **local-first approach**.
+Idler is designed around a **local-first approach**.
 
 | Feature | What it means |
 |---|---|
