@@ -554,6 +554,25 @@ Once installed, future releases are downloaded in the background automatically. 
 1. **Shortcut**: Press **`Cmd+Shift+I`** (or `Ctrl+Shift+I`) from anywhere to instantly open/close the sloth menu!
 2. **Notch Pro-Tip**: If you have a MacBook with a notch and many icons, hold **`Cmd`** and drag the sloth icon to the right side (near the clock) so macOS never hides it.
 
+---
 
+### 🔒 Cryptographic Checksums (SHA-256)
 
+#### v0.2.4 Checksums
+```text
+da1a524e21ecf6363bfa7cd33d3aee7276cc40cd48f525a86c8759d7e2da5806  Idler-0.2.4-arm64.dmg
+87e14aa2214473e5ce6eb089ef6239318d38e5641f5e594dbc2cf6aec661739f  Idler-0.2.4-arm64-mac.zip
+738e80d010e1a3de8d7ce5fe196495b667c40f737a2a23bd304909f3b5a38e74  Idler.Setup.0.2.4.exe
+0568a3b7207c88e0d65dd806ebb164c0b47e2c58cc9224745c03bc6e08d45478  Idler.0.2.4.exe
+d45a9a7d0e3d462ebc52adf53af635d28ea38c7328f17e7adc4bdd597bba0d8d  Idler-0.2.4-win.zip
+```
+
+---
+
+## 🎃 Hacktoberfest 2026
+
+Idler welcomes open-source contributors for **Hacktoberfest 2026**!
+- 🏷️ Look for issues tagged [`hacktoberfest`](https://github.com/Kaashviw3spaces/Idler/labels/hacktoberfest), [`good first issue`](https://github.com/Kaashviw3spaces/Idler/labels/good%20first%20issue), and [`help wanted`](https://github.com/Kaashviw3spaces/Idler/labels/help%20wanted).
+- 💡 Contributions welcome across Python/FastAPI backend heuristics, React/TypeScript UI previewers, Electron desktop features, and documentation.
+- 🧪 All 51 automated tests passing (`pytest backend/tests`).
 
