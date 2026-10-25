@@ -17,6 +17,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Kaashviw3spaces/Idler/releases/tag/v0.2.4"><img src="https://img.shields.io/badge/Release-v0.2.4-38bdf8?style=flat-square" alt="Latest Release v0.2.4" /></a>
   <img src="https://img.shields.io/badge/Status-In%20Development-9B91C8?style=flat-square" alt="In development" />
   <img src="https://img.shields.io/badge/AI-Local--First-8CB8C9?style=flat-square" alt="Local-first AI" />
   <img src="https://img.shields.io/badge/Backend-FastAPI-7DAF9C?style=flat-square" alt="FastAPI" />
@@ -530,8 +531,8 @@ Once installed, future releases are downloaded in the background automatically. 
 
 ## 📦 Official Releases & Downloads (v0.2.4)
 
-> **Guaranteed macOS Menu Bar Sloth Icon (In-Memory Multi-Resolution Retina), Global Shortcut `Cmd+Shift+I` & Built-In Auto-Updater**  
-> *Fixes the macOS menu bar icon by embedding multi-resolution Retina sloth templates directly into memory (preventing empty asar asset resolution) and adds `Cmd+Shift+I` global shortcut so the sloth menu can be opened instantly anytime.*
+> **In-App Auto-Updater Engine, Screen Record Mode (`Cmd+P`), Guaranteed Retina Sloth Menu Bar Icon (`Cmd+Shift+I`) & Restored Broom Branding**  
+> *Zero-redownload seamless updates for macOS & Windows, pinned window mode for streamers, reliable in-memory menu bar mascot, and restored straw broom badge.*
 
 ### 🪟 Windows (10 / 11 64-bit)
 
@@ -556,6 +557,12 @@ Once installed, future releases are downloaded in the background automatically. 
 |---|---|---|---|
 | **DMG Installer (Recommended)** | [📥 **`Idler-0.2.4-arm64.dmg`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.4/Idler-0.2.4-arm64.dmg) | `.dmg` | Native drag-and-drop disk image installer |
 | **ZIP Archive** | [📥 **`Idler-0.2.4-arm64-mac.zip`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.4/Idler-0.2.4-arm64-mac.zip) | `.zip` | Standalone portable `.app` bundle |
+
+> **macOS Quickstart**:
+> 1. Download & open [**`Idler-0.2.4-arm64.dmg`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.4/Idler-0.2.4-arm64.dmg), then drag `Idler.app` into `/Applications`.
+> 2. If macOS Gatekeeper alerts on first launch, run in Terminal:  
+>    `xattr -cr /Applications/Idler.app`
+> 3. Click the sloth icon in your top menu bar or press **`Cmd+Shift+I`**!
 
 **Quick Tips:**
 1. **Shortcut**: Press **`Cmd+Shift+I`** (or `Ctrl+Shift+I`) from anywhere to instantly open/close the sloth menu!
