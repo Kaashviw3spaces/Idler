@@ -385,15 +385,7 @@ Idler is distributed under the MIT License, provided the repository's `LICENSE` 
 
 ---
 
-<p align="center">
-  <img src="assets/sloth-maid.png" alt="IDLER's sleepy sloth maid holding a broom" width="180" />
-  <br /><br />
-  <strong>Your computer is a mess.</strong>
-  <br />
-  <strong>Your sloth has a broom.</strong>
-  <br /><br />
-  <i>A little less mess. A little more rest. 🦥</i>
-</p>
+
 
 
 ---
