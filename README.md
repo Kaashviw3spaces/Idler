@@ -486,3 +486,17 @@ cc919031ed9e76a5018b7bfa2d8cc429e5df2d69066d85621d57cb9620bd80fe  Idler-0.2.1-ar
 4. Click the cozy sloth icon in your top macOS Menu Bar!
 5. **Screen Recording:** Click **`PIN`** in the top header or right-click the sloth icon and check **`📌 Keep Window Open (Screen Record Mode)`** (or press `Cmd+P`) so Idler stays 100% visible on screen while recording!
 
+---
+
+### 🔒 Cryptographic Checksums (SHA-256)
+
+#### v0.2.2 Checksums
+```text
+af75bf3cceb2bf46e4e1d1648caa7e6fdecdd4934ffcd2450be47b8da883e2d3  Idler.Setup.0.2.2.exe
+1d4405f4e97bf834689dffaa0452bc39cec1a956ec9fd48f152f828ebbfda972  Idler.0.2.2.exe
+67fee9672838e141425cf6343d37312182076eef3f1c38c6308878629f4f9f50  Idler-0.2.2-win.zip
+b7c58075bfce16f4180e306125f06b29196cdfc4512674c27a89c5a1625d6eed  Idler-0.2.2-arm64.dmg
+0d94e0d585b7c36fc58f32a4415d060e799bc584731ba91856f00f571079b946  Idler-0.2.2-arm64-mac.zip
+```
+
+
