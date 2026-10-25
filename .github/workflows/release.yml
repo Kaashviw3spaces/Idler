@@ -1,0 +1,77 @@
+name: Release Multi-Platform Desktop & Web
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package.json
+            electron/package.json
+
+      - name: Install Frontend Dependencies & Build
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+      - name: Sync Frontend Dist to Electron (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          rm -rf electron/frontend_dist
+          cp -r frontend/dist electron/frontend_dist
+
+      - name: Sync Frontend Dist to Electron (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Test-Path electron/frontend_dist) { Remove-Item -Recurse -Force electron/frontend_dist }
+          Copy-Item -Recurse -Force frontend/dist electron/frontend_dist
+
+      - name: Install Electron Dependencies
+        run: |
+          cd electron
+          npm install
+
+      - name: Build macOS Artifacts (DMG, ZIP)
+        if: runner.os == 'macOS'
+        run: |
+          cd electron
+          npx electron-builder --mac dmg zip
+
+      - name: Build Windows Artifacts (NSIS Setup EXE, Portable EXE, ZIP)
+        if: runner.os == 'Windows'
+        run: |
+          cd electron
+          npx electron-builder --win nsis portable zip --x64
+
+      - name: Upload Release Assets to GitHub
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          files: |
+            electron/dist/*.dmg
+            electron/dist/*.zip
+            electron/dist/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

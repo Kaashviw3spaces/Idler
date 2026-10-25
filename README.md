@@ -5,6 +5,17 @@
 
 ---
 
+## 📦 Downloads (v0.1.0)
+
+| Platform | Download Link | Type |
+|---|---|---|
+| **Windows (x64)** | [📥 **Idler-0.1.0-windows-x64.zip**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.1.0/Idler-0.1.0-windows-x64.zip) | Portable App (`Idler.exe` / `Run-Idler.bat`) |
+| **Windows (ARM64)** | [📥 **Idler-0.1.0-windows-arm64.zip**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.1.0/Idler-0.1.0-windows-arm64.zip) | Portable App (Surface / ARM) |
+| **macOS (Apple Silicon)** | [📥 **Idler-0.1.0-arm64.dmg**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.1.0/Idler-0.1.0-arm64.dmg) | Drag-and-Drop Disk Image Installer |
+| **macOS (Portable ZIP)** | [📥 **Idler-0.1.0-arm64-mac.zip**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.1.0/Idler-0.1.0-arm64-mac.zip) | Standalone `.app` Archive |
+
+---
+
 ## 🌟 Overview
 
 **Idler** translates natural-language instructions into safe, reviewable, and verifiable operations on your computer. Rather than giving language models unrestricted desktop control or arbitrary shell access, **Idler** enforces a strict security boundary:
