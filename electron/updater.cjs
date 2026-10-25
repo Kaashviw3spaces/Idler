@@ -417,3 +417,4 @@ module.exports = {
   quitAndInstallUpdate,
   getUpdateStatus,
 };
+

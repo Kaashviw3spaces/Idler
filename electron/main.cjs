@@ -9,12 +9,22 @@ process.on('unhandledRejection', (reason) => {
   console.error('[Main Process Unhandled Rejection]:', reason);
 });
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, shell, Notification, nativeImage, screen, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, Notification, nativeImage, screen, dialog, globalShortcut } = require('electron');
 const path = require('path');
 const { spawn, exec } = require('child_process');
 const http = require('http');
 
-const updater = require('./updater.cjs');
+let updater = {
+  checkForUpdates: async () => ({ success: false, error: 'Updater not available' }),
+  quitAndInstallUpdate: () => false,
+  getUpdateStatus: () => ({ status: 'idle', version: null, progress: 0, error: null }),
+  initAutoUpdater: () => {},
+};
+try {
+  updater = require('./updater.cjs');
+} catch (err) {
+  console.warn('[Updater Module Warning]:', err.message);
+}
 
 let tray = null;
 let mainWindow = null;
@@ -39,27 +49,49 @@ function getTrayIcon() {
   const fs = require('fs');
   const templatePath1x = path.join(__dirname, 'assets', 'trayTemplate.png');
   const templatePath2x = path.join(__dirname, 'assets', 'trayTemplate@2x.png');
-  const whiteTrayPath = path.join(__dirname, 'assets', 'tray@2x.png');
 
   let icon = null;
-  if (fs.existsSync(templatePath1x)) {
-    icon = nativeImage.createFromPath(templatePath1x);
-  } else if (fs.existsSync(templatePath2x)) {
-    icon = nativeImage.createFromPath(templatePath2x);
-  } else if (fs.existsSync(whiteTrayPath)) {
-    icon = nativeImage.createFromPath(whiteTrayPath);
+
+  try {
+    if (fs.existsSync(templatePath1x)) {
+      const buf1x = fs.readFileSync(templatePath1x);
+      icon = nativeImage.createFromBuffer(buf1x, { scaleFactor: 1.0 });
+      if (fs.existsSync(templatePath2x)) {
+        const buf2x = fs.readFileSync(templatePath2x);
+        icon.addRepresentation({
+          scaleFactor: 2.0,
+          buffer: buf2x,
+          width: 22,
+          height: 22,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[Tray Icon Buffer Warning]:', err.message);
   }
 
+  // 100% Guaranteed Cute Hanging Sloth Mascot Embedded In-Memory
   if (!icon || icon.isEmpty()) {
-    const fallbackDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAAMElEQVR42mNkIAAYCQlYqGkeNYx6ZEAOGhgYGBghfAawGkYNY9SM0YyG6gEMDAAAK1gCBd3P+GMAAAAASUVORK5CYII=';
-    icon = nativeImage.createFromDataURL(fallbackDataUri);
+    const slothB64_1x = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAApUlEQVR42mNgGKogBoj/A/F0JLHXUDGqGAzD95HYN4DYHirGRarBLGgG48MMePg8uCx4QYIF+CzGCXSBeCktDGcCYmYgZqOWwXxEaFID4lgcclexGSxHpGu0sUQg3iDAZdARIlIGDJ8kZHAUNSMOJFhCheTmS2xQUOzqUFoZzEBLg6WpYGg0oWxNrsHahAyeTYahN4ktTv+QYGgSqWW1B6VFJVUBAOyaD2T+ddg3AAAAAElFTkSuQmCC';
+    const slothB64_2x = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACwAAAAsCAYAAAAehFoBAAAB2klEQVR42mNgGAWjACfwBeL/UCyORx0rEHMDMddAOzgGycEgPB2HutdIalIHk4NB+BIQWyKp+Y8FSwwmB8PwfSjGJncDmjzskdRJ0yPJ4HMwuRgdJAJxCRJGBsJI4uzEOJiFBg4+CjWbE4f8Sag8OxY5HmIdXU1FB4PygAAe+atALERCDOEEJkD8ggYhTiq2IjVd80JLiYF2eBk5mVIXiJdC8eEBcDRFAJTW9w12BzNBczMzlM82WB2cBcQFQLwCqvEOlC8NpQmVEgxQT9LcwXxAXEEFi9Sg5sWSoMcEWuQR7WA5KkalNtRMMRL0IFcaOdAGF10ci+xgEDhFpB4RLPkHJ5hLwLClUDqNSMt/oJlPjJ6XxGYwbiINPIbEPkKEensSHYzczqDIwdjaGTlEWO4JxHlkJCdNch28CYijBqB2u0mKg6eTkEloic2JdXDJIHDsf2jnmOJMN2gaPoPVwRL4GjjbB6GDO/GFcuhQczAI/B1qDrYZag4GgVtA/HuwlxLIANRA5x8Ejo2mpC836Gq6weho7aHkYA1qDBrOHiwtNWIBJx0c+xY6jEA1ACo9/tDIsUnUdizy6M8fKicBDQYaA1BIewyGootcUAKtRglVszAcMzp5N9gAAL1AOTBvjlnkAAAAAElFTkSuQmCC';
+    icon = nativeImage.createFromDataURL(slothB64_1x);
+    try {
+      const img2x = nativeImage.createFromDataURL(slothB64_2x);
+      if (!img2x.isEmpty()) {
+        icon.addRepresentation({
+          scaleFactor: 2.0,
+          buffer: img2x.toPNG(),
+          width: 22,
+          height: 22,
+        });
+      }
+    } catch {}
   }
 
-  const resized = icon.resize({ width: 20, height: 20 });
   if (process.platform === 'darwin') {
-    resized.setTemplateImage(true);
+    icon.setTemplateImage(true);
   }
-  return resized;
+  return icon;
 }
 
 function getWindowPosition() {
@@ -503,6 +535,14 @@ app.whenReady().then(() => {
   updater.initAutoUpdater(mainWindow, () => {
     if (backendProcess) backendProcess.kill();
   });
+
+  try {
+    globalShortcut.register('CommandOrControl+Shift+I', () => {
+      toggleWindow();
+    });
+  } catch (err) {
+    console.warn('[Global Shortcut Warning]:', err.message);
+  }
 });
 
 app.on('activate', () => {
