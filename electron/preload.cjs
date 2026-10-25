@@ -26,5 +26,12 @@ contextBridge.exposeInMainWorld('idlerDesktop', {
     ipcRenderer.on('window-shown', handler);
     return () => ipcRenderer.removeListener('window-shown', handler);
   },
+  setPinned: (pinned) => ipcRenderer.invoke('set-pinned', pinned),
+  getPinned: () => ipcRenderer.invoke('get-pinned'),
+  onPinStatusChanged: (callback) => {
+    const handler = (event, pinned) => callback(pinned);
+    ipcRenderer.on('pin-status-changed', handler);
+    return () => ipcRenderer.removeListener('pin-status-changed', handler);
+  },
 });
 

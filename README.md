@@ -446,3 +446,43 @@ ce4aa8bb76dc954c3ccb977761f2ab734c8d6b823ffd78c8892bdf212a7b15ab  Idler-0.2.1-wi
 cc919031ed9e76a5018b7bfa2d8cc429e5df2d69066d85621d57cb9620bd80fe  Idler-0.2.1-arm64.dmg
 9269b2082a4a0c806e17170b8b753d5786092422b7f8b9d3f87a64f5fc68c1ad  Idler-0.2.1-arm64-mac.zip
 ```
+
+---
+
+## 📦 Official Releases & Downloads (v0.2.2)
+
+> **Screen Record Mode / Window Pinning, Sloth Mascot in Menu & Always-On-Top Recording Support**  
+> *Keeps the Idler sloth menu completely visible during screen recordings (OBS, QuickTime, macOS Cmd+Shift+5, CleanShot, Loom). Includes one-click `PIN` / `REC` header toggle, `Cmd+P` shortcut, and right-click system tray menu toggle!*
+
+### 🪟 Windows (10 / 11 64-bit)
+
+| Package | Download Link | Type | Description |
+|---|---|---|---|
+| **Installer (Recommended)** | [📥 **`Idler.Setup.0.2.2.exe`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.2/Idler.Setup.0.2.2.exe) | `.exe` | One-click setup installer with Start Menu & System Tray integration |
+| **Portable Executable** | [📥 **`Idler.0.2.2.exe`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.2/Idler.0.2.2.exe) | `.exe` | Single-file portable executable — run immediately with zero installation |
+| **Portable ZIP** | [📥 **`Idler-0.2.2-win.zip`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.2/Idler-0.2.2-win.zip) | `.zip` | Standalone unpacked folder archive |
+
+**Windows Instructions:**
+1. Download **`Idler.Setup.0.2.2.exe`** (or **`Idler.0.2.2.exe`**).
+2. Launch the application. Idler will appear in your **Windows System Tray** (bottom right, next to the clock).
+3. Click the sloth tray icon to open Idler. Toggle **`PIN`** in the header or right-click to enable **Screen Record Mode** to keep it displayed while recording!
+
+---
+
+### 🍏 macOS (Apple Silicon / arm64)
+
+| Package | Download Link | Type | Description |
+|---|---|---|---|
+| **DMG Installer (Recommended)** | [📥 **`Idler-0.2.2-arm64.dmg`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.2/Idler-0.2.2-arm64.dmg) | `.dmg` | Native drag-and-drop disk image installer |
+| **ZIP Archive** | [📥 **`Idler-0.2.2-arm64-mac.zip`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.2/Idler-0.2.2-arm64-mac.zip) | `.zip` | Standalone portable `.app` bundle |
+
+**macOS Instructions:**
+1. Download **`Idler-0.2.2-arm64.dmg`** (or unzip `Idler-0.2.2-arm64-mac.zip`).
+2. Drag `Idler.app` into your `/Applications` folder.
+3. If macOS Gatekeeper alerts on first launch, run:
+   ```bash
+   xattr -cr /Applications/Idler.app
+   ```
+4. Click the cozy sloth icon in your top macOS Menu Bar!
+5. **Screen Recording:** Click **`PIN`** in the top header or right-click the sloth icon and check **`📌 Keep Window Open (Screen Record Mode)`** (or press `Cmd+P`) so Idler stays 100% visible on screen while recording!
+

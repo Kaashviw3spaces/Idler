@@ -26,6 +26,7 @@ let tray = null;
 let mainWindow = null;
 let backendProcess = null;
 let isDialogOpen = false;
+let isPinned = false;
 
 let updateStatus = {
   status: 'idle', // 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'error' | 'not-available'
@@ -114,15 +115,15 @@ if (!gotTheLock) {
 
 function getTrayIcon() {
   const fs = require('fs');
-  const templatePath2x = path.join(__dirname, 'assets', 'trayTemplate@2x.png');
   const templatePath1x = path.join(__dirname, 'assets', 'trayTemplate.png');
+  const templatePath2x = path.join(__dirname, 'assets', 'trayTemplate@2x.png');
   const whiteTrayPath = path.join(__dirname, 'assets', 'tray@2x.png');
 
   let icon = null;
-  if (fs.existsSync(templatePath2x)) {
-    icon = nativeImage.createFromPath(templatePath2x);
-  } else if (fs.existsSync(templatePath1x)) {
+  if (fs.existsSync(templatePath1x)) {
     icon = nativeImage.createFromPath(templatePath1x);
+  } else if (fs.existsSync(templatePath2x)) {
+    icon = nativeImage.createFromPath(templatePath2x);
   } else if (fs.existsSync(whiteTrayPath)) {
     icon = nativeImage.createFromPath(whiteTrayPath);
   }
@@ -133,7 +134,9 @@ function getTrayIcon() {
   }
 
   const resized = icon.resize({ width: 20, height: 20 });
-  resized.setTemplateImage(true);
+  if (process.platform === 'darwin') {
+    resized.setTemplateImage(true);
+  }
   return resized;
 }
 
@@ -198,7 +201,8 @@ function showWindow() {
   lastWindowShowTime = Date.now();
   // Ensure window floats over current space/desktop (Chrome, VS Code, etc.) without switching Spaces
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  mainWindow.setAlwaysOnTop(true, 'status', 1);
+  const level = isPinned ? 'screen-saver' : 'status';
+  mainWindow.setAlwaysOnTop(true, level, 1);
   mainWindow.show();
   mainWindow.focus();
   if (mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
@@ -218,6 +222,23 @@ function toggleWindow() {
   }
 }
 
+function setPinned(pinned) {
+  isPinned = !!pinned;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const level = isPinned ? 'screen-saver' : 'status';
+    mainWindow.setAlwaysOnTop(true, level, 1);
+    mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    if (isPinned && !mainWindow.isVisible()) {
+      showWindow();
+    }
+    if (mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.send('pin-status-changed', isPinned);
+    }
+  }
+  updateTrayMenu();
+  return isPinned;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: POPOVER_WIDTH,
@@ -231,7 +252,7 @@ function createWindow() {
     fullscreenable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    hiddenInMissionControl: true,
+    hiddenInMissionControl: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
@@ -242,7 +263,8 @@ function createWindow() {
 
   // Enable floating across all macOS spaces/virtual desktops & over fullscreen apps like Chrome
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  mainWindow.setAlwaysOnTop(true, 'status', 1);
+  const level = isPinned ? 'screen-saver' : 'status';
+  mainWindow.setAlwaysOnTop(true, level, 1);
 
   mainWindow.webContents.on('did-fail-load', (e, code, desc, url) => {
     console.error('Renderer failed to load:', code, desc, url);
@@ -270,8 +292,9 @@ function createWindow() {
     showWindow();
   });
 
-  // Auto-hide when user clicks outside the popover window (with a grace window on launch)
+  // Auto-hide when user clicks outside the popover window (unless pinned in Screen Record Mode)
   mainWindow.on('blur', () => {
+    if (isPinned) return; // Keep window open during screen recording or pinning
     if (isDialogOpen) return;
     if (Date.now() - lastWindowShowTime < 1500) {
       return;
@@ -294,10 +317,8 @@ function createWindow() {
   });
 }
 
-function createTray() {
-  const icon = getTrayIcon();
-  tray = new Tray(icon);
-  tray.setToolTip('Idler — Local AI File Assistant');
+function updateTrayMenu() {
+  if (!tray) return;
 
   const contextMenu = Menu.buildFromTemplate([
     { label: '🦥 Idler Desktop', enabled: false },
@@ -305,6 +326,14 @@ function createTray() {
     {
       label: 'Open Idler Window',
       click: () => showWindow(),
+    },
+    {
+      label: isPinned ? '📌 Keep Window Open (Screen Record Mode)  ✓' : '📌 Keep Window Open (Screen Record Mode)',
+      type: 'checkbox',
+      checked: isPinned,
+      click: (menuItem) => {
+        setPinned(menuItem.checked);
+      },
     },
     {
       label: 'Open in Web Browser',
@@ -340,6 +369,18 @@ function createTray() {
     },
   ]);
 
+  tray.setContextMenu(contextMenu);
+}
+
+function createTray() {
+  const icon = getTrayIcon();
+  tray = new Tray(icon);
+  tray.setToolTip('Idler — Local AI File Assistant');
+  if (process.platform === 'darwin') {
+    tray.setIgnoreDoubleClickEvents(true);
+  }
+  updateTrayMenu();
+
   // Click tray icon to toggle window
   tray.on('click', () => {
     toggleWindow();
@@ -347,7 +388,8 @@ function createTray() {
 
   // Right-click opens context menu
   tray.on('right-click', () => {
-    tray.popUpContextMenu(contextMenu);
+    updateTrayMenu();
+    tray.popUpContextMenu();
   });
 }
 
@@ -513,6 +555,14 @@ ipcMain.handle('get-app-version', () => {
 
 ipcMain.handle('get-update-status', () => {
   return updateStatus;
+});
+
+ipcMain.handle('set-pinned', (e, pinned) => {
+  return setPinned(pinned);
+});
+
+ipcMain.handle('get-pinned', () => {
+  return isPinned;
 });
 
 ipcMain.on('resize-height', (event, height) => {

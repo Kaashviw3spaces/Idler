@@ -245,6 +245,9 @@ declare global {
       getAppVersion?: () => Promise<string>;
       getUpdateStatus?: () => Promise<AutoUpdateStatus>;
       onAutoUpdateStatus?: (callback: (status: AutoUpdateStatus) => void) => () => void;
+      setPinned?: (pinned: boolean) => Promise<boolean>;
+      getPinned?: () => Promise<boolean>;
+      onPinStatusChanged?: (callback: (pinned: boolean) => void) => () => void;
     };
   }
 }

@@ -24,6 +24,8 @@ import {
   File,
   Download,
   HardDrive,
+  Pin,
+  PinOff,
 } from 'lucide-react';
 import { CompactStorageAnalytics } from './components/CompactStorageAnalytics';
 import { FilePreviewModal, FilePreviewTarget } from './components/FilePreviewModal';
@@ -249,6 +251,63 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
       return () => unsub();
     }
   }, [addToast]);
+
+  // Screen Record Mode / Pin Window state
+  const [isPinned, setIsPinned] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('idler_window_pinned') === 'true';
+      } catch {}
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (window.idlerDesktop?.getPinned) {
+      window.idlerDesktop.getPinned().then((pinned) => {
+        setIsPinned(pinned);
+      }).catch(() => {});
+    }
+
+    if (window.idlerDesktop?.onPinStatusChanged) {
+      const unsub = window.idlerDesktop.onPinStatusChanged((pinned) => {
+        setIsPinned(pinned);
+        try {
+          localStorage.setItem('idler_window_pinned', String(pinned));
+        } catch {}
+      });
+      return () => unsub();
+    }
+  }, []);
+
+  const togglePin = useCallback(() => {
+    const next = !isPinned;
+    setIsPinned(next);
+    try {
+      localStorage.setItem('idler_window_pinned', String(next));
+    } catch {}
+    if (window.idlerDesktop?.setPinned) {
+      window.idlerDesktop.setPinned(next).catch(() => {});
+    }
+    addToast(
+      'info',
+      next
+        ? '📌 Screen Record Mode ON: Window pinned open (won’t close on click outside)'
+        : '📌 Screen Record Mode OFF: Auto-close restored'
+    );
+  }, [isPinned, addToast]);
+
+  // Keyboard shortcut: Cmd+P or Ctrl+P to toggle Screen Record Mode (Pin)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        togglePin();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [togglePin]);
 
   useEffect(() => {
     if (effectiveWorkspace) {
@@ -707,20 +766,23 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
-          <div
+          <img
+            src="/sloth.png"
+            alt="Idler"
+            className="sloth-mascot-glow"
             style={{
-              width: '26px',
-              height: '26px',
-              borderRadius: '7px',
-              background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              width: '28px',
+              height: '28px',
+              objectFit: 'contain',
               flexShrink: 0,
+              cursor: 'pointer',
             }}
-          >
-            <Sparkles size={13} color="#ffffff" />
-          </div>
+            onClick={() => {
+              if (onOpenStudio) onOpenStudio();
+              else if (window.idlerDesktop?.openStudio) window.idlerDesktop.openStudio();
+            }}
+            title="Idler Sloth Mascot — Click to open full Studio"
+          />
 
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -751,33 +813,64 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
           </div>
         </div>
 
-        <button
-          className="quick-sort-btn"
-          onClick={() => {
-            setActiveTab('planner');
-            handleRunPrompt(
-              selectedSubfolder
-                ? `Organize all unorganized files in ${selectedSubfolder} folder by category`
-                : 'Organize all unorganized files by category'
-            );
-          }}
-          disabled={isPlanning}
-          style={{
-            background: '#2563eb',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '5px 12px',
-            fontSize: '11px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.35)',
-            flexShrink: 0,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {isPlanning ? 'Thinking…' : 'Quick Sort'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          <button
+            className="cozy-action-btn"
+            onClick={togglePin}
+            title={
+              isPinned
+                ? '📌 Screen Record Mode (Pinned) — Idler stays open while recording or clicking outside. Click to unpin.'
+                : '📌 Pin Window (Screen Record Mode) — Keeps Idler open while recording screen or multitasking (Shortcut: Cmd+P).'
+            }
+            style={{
+              background: isPinned ? 'rgba(14, 165, 233, 0.25)' : 'rgba(255, 255, 255, 0.06)',
+              border: isPinned ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+              color: isPinned ? '#38bdf8' : '#94a3b8',
+              borderRadius: '8px',
+              padding: '5px 8px',
+              fontSize: '11px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              boxShadow: isPinned ? '0 0 12px rgba(56, 189, 248, 0.35)' : 'none',
+              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            {isPinned ? <PinOff size={12} color="#38bdf8" /> : <Pin size={12} color="#94a3b8" />}
+            <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.3px' }}>
+              {isPinned ? 'REC' : 'PIN'}
+            </span>
+          </button>
+
+          <button
+            className="quick-sort-btn"
+            onClick={() => {
+              setActiveTab('planner');
+              handleRunPrompt(
+                selectedSubfolder
+                  ? `Organize all unorganized files in ${selectedSubfolder} folder by category`
+                  : 'Organize all unorganized files by category'
+              );
+            }}
+            disabled={isPlanning}
+            style={{
+              background: '#2563eb',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '5px 12px',
+              fontSize: '11px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(37, 99, 235, 0.35)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {isPlanning ? 'Thinking…' : 'Quick Sort'}
+          </button>
+        </div>
       </div>
 
       {/* 2. Target Selector: Single Clean Line (Only shown if sortable subfolders exist) */}
