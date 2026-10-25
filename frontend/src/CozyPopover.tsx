@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
+  Sparkles,
   History,
   Search,
   Code2,
@@ -23,8 +24,6 @@ import {
   File,
   Download,
   HardDrive,
-  Volume2,
-  VolumeX,
 } from 'lucide-react';
 import { CompactStorageAnalytics } from './components/CompactStorageAnalytics';
 import { FilePreviewModal, FilePreviewTarget } from './components/FilePreviewModal';
@@ -106,34 +105,6 @@ function getDestinationSubfolder(destination?: string): string {
   }
   return clean || '(root)';
 }
-
-const BroomIcon: React.FC<{ size?: number; color?: string; style?: React.CSSProperties }> = ({
-  size = 15,
-  color = 'currentColor',
-  style,
-}) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={color}
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    style={style}
-  >
-    {/* Clean pole handle */}
-    <line x1="12" y1="2.5" x2="12" y2="12" />
-    {/* Broom collar band */}
-    <line x1="9" y1="12.5" x2="15" y2="12.5" />
-    {/* Flared straw head */}
-    <path d="M9.5 13L5.5 20.2C5.2 21 5.8 21.5 6.8 21.5H17.2C18.2 21.5 18.8 21 18.5 20.2L14.5 13" />
-    {/* Straw texture lines */}
-    <line x1="10" y1="16.5" x2="9.5" y2="21.5" />
-    <line x1="14" y1="16.5" x2="14.5" y2="21.5" />
-  </svg>
-);
 
 export const CozyPopover: React.FC<CozyPopoverProps> = ({
   workspaces,
@@ -397,62 +368,56 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
     isFilesSectionExpanded,
   ]);
 
-  // 8 Clean, Concise Chips in 2x4 Grid
-  interface ChipDef {
-    label: string;
-    query?: string;
-    action?: string;
-  }
-
-  const chipsRow1: ChipDef[] = [
-    { label: 'All Files', query: 'Organize all unorganized files by category' },
-    { label: 'Images', query: 'Move all images into Images subfolder' },
-    { label: 'Documents', query: 'Group PDF, Word, and text files into Documents' },
-    { label: 'Code', query: 'Group source code files into Code subfolder' },
+  // 8 Minimalist Chips in 2x4 Grid
+  const chipsRow1 = [
+    { label: 'Downloads', query: 'Organize files in Downloads folder by category' },
+    { label: 'Sort Images', query: 'Move all images into Images subfolder' },
+    { label: 'Documents', query: 'Sort PDF, Word, and text files into Documents' },
+    { label: 'Duplicates', action: 'duplicates' },
   ];
 
-  const chipsRow2: ChipDef[] = [
+  const chipsRow2 = [
+    { label: 'Clean Temp', query: 'Identify temporary and scratch files' },
     { label: 'Spreadsheets', query: 'Group Excel and CSV spreadsheets into Spreadsheets' },
-    { label: 'Temp Files', query: 'Identify temporary and scratch files' },
-    { label: 'Duplicates', action: 'duplicates' },
+    { label: 'Auto-Sort', query: 'Organize all unorganized files by category' },
     { label: 'Custom…', action: 'custom' },
   ];
 
-  // 7 Concise Tabs
+  // 6 Tabs exactly matching the attachment
   const tabs: { id: CozyTab; label: string; icon: React.ReactNode }[] = [
     {
       id: 'planner',
-      label: 'Organize',
-      icon: <BroomIcon size={15} />,
+      label: 'Scan & Plan',
+      icon: <Sparkles size={15} />,
     },
     {
       id: 'ledger',
-      label: `History (${actions.length})`,
+      label: `Action Ledger & Undo (${actions.length})`,
       icon: <History size={15} />,
     },
     {
       id: 'duplicates',
-      label: 'Duplicates',
+      label: 'Duplicate Finder',
       icon: <Search size={15} />,
     },
     {
       id: 'projects',
-      label: 'Projects',
+      label: 'Project Inspector',
       icon: <Code2 size={15} />,
     },
     {
       id: 'workflows',
-      label: `Workflows (${workflows.length})`,
+      label: `Saved Workflows (${workflows.length})`,
       icon: <FolderSync size={15} />,
     },
     {
       id: 'workspaces',
-      label: `Folders (${cleanWorkspaces.length})`,
+      label: `Workspaces (${cleanWorkspaces.length})`,
       icon: <FolderOpen size={15} />,
     },
     {
       id: 'storage',
-      label: 'Storage',
+      label: 'Storage Insights',
       icon: <HardDrive size={15} />,
     },
   ];
@@ -640,19 +605,19 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
   function getSectionLabel(t: CozyTab): string {
     switch (t) {
       case 'planner':
-        return 'QUICK ACTIONS';
+        return 'KEEP ORGANIZED';
       case 'ledger':
-        return `ACTION HISTORY (${actions.length})`;
+        return `ACTION LEDGER & UNDO (${actions.length})`;
       case 'duplicates':
-        return 'DUPLICATES';
+        return 'CRYPTOGRAPHIC DUPLICATE FINDER';
       case 'projects':
-        return 'PROJECTS';
+        return 'PROJECT & REPOSITORY INSPECTOR';
       case 'workflows':
-        return `WORKFLOWS (${workflows.length})`;
+        return `SAVED WORKFLOWS (${workflows.length})`;
       case 'workspaces':
-        return 'FOLDERS';
+        return 'ACTIVE FOLDER TO SCAN ON COMPUTER';
       case 'storage':
-        return 'STORAGE';
+        return 'STORAGE ANALYTICS & INSIGHTS';
     }
   }
 
@@ -698,13 +663,13 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         }}
       />
 
-      {/* 1. Concise, Clean Top Header Bar */}
+      {/* 1. Concise, Clean Top Header Card */}
       <div
         style={{
           background: 'rgba(255, 255, 255, 0.04)',
           border: '1px solid rgba(255, 255, 255, 0.09)',
           borderRadius: '12px',
-          padding: '7px 10px',
+          padding: '8px 10px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -724,68 +689,34 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               flexShrink: 0,
             }}
           >
-            <BroomIcon size={15} color="#ffffff" />
+            <Sparkles size={13} color="#ffffff" />
           </div>
 
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff', flexShrink: 0 }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#ffffff' }}>
                 Idler
               </span>
-              <span style={{ fontSize: '11px', color: '#64748b', flexShrink: 0 }}>/</span>
-              <select
-                value={selectedSubfolder || ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val.startsWith('__ws__:')) {
-                    const wsPath = val.replace('__ws__:', '');
-                    onSelectWorkspace(wsPath);
-                    setSelectedSubfolder(null);
-                  } else {
-                    setSelectedSubfolder(val || null);
-                  }
-                }}
+              <span
+                onClick={() => setActiveTab('workspaces')}
+                title="Click to switch workspace"
                 style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#93c5fd',
                   fontSize: '11px',
-                  fontWeight: '600',
-                  outline: 'none',
+                  color: '#94a3b8',
                   cursor: 'pointer',
-                  padding: 0,
-                  maxWidth: '145px',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                 }}
               >
-                <option value="" style={{ background: '#18151e', color: '#ffffff' }}>
-                  {activeWsObj?.name || 'Workspace'} ({sortableCounts.rootSortable})
-                </option>
-                {sortableSubfolders.map((sub) => (
-                  <option key={sub.name} value={sub.name} style={{ background: '#18151e', color: '#ffffff' }}>
-                    📁 {sub.name} ({sortableCounts.subfolderSortable[sub.name]})
-                  </option>
-                ))}
-                {cleanWorkspaces.length > 1 && (
-                  <optgroup label="Switch Workspace" style={{ background: '#18151e', color: '#94a3b8' }}>
-                    {cleanWorkspaces
-                      .filter((w) => w.path !== effectiveWorkspace)
-                      .map((w) => (
-                        <option key={w.path} value={`__ws__:${w.path}`} style={{ background: '#18151e', color: '#ffffff' }}>
-                          📂 {w.name}
-                        </option>
-                      ))}
-                  </optgroup>
-                )}
-              </select>
+                / {activeWsObj?.name || 'Workspace'}
+              </span>
             </div>
 
             <div style={{ fontSize: '10px', color: '#64748b', marginTop: '1px' }}>
               {selectedSubfolder
                 ? `${sortableCounts.subfolderSortable[selectedSubfolder] || 0} to sort in subfolder`
-                : `${sortableCounts.rootSortable} files to organize`}
+                : `${sortableCounts.rootSortable} unorganized loose file(s)`}
             </div>
           </div>
         </div>
@@ -818,6 +749,51 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
           {isPlanning ? 'Thinking…' : 'Quick Sort'}
         </button>
       </div>
+
+      {/* 2. Target Selector: Single Clean Line (Only shown if sortable subfolders exist) */}
+      {sortableSubfolders.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'rgba(255, 255, 255, 0.03)',
+            border: '1px solid rgba(255, 255, 255, 0.07)',
+            borderRadius: '8px',
+            padding: '4px 8px',
+            gap: '8px',
+          }}
+        >
+          <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px', flexShrink: 0 }}>
+            Target:
+          </span>
+          <select
+            value={selectedSubfolder || ''}
+            onChange={(e) => setSelectedSubfolder(e.target.value || null)}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              background: 'transparent',
+              border: 'none',
+              color: '#60a5fa',
+              fontSize: '11px',
+              fontWeight: '600',
+              outline: 'none',
+              cursor: 'pointer',
+              textAlign: 'right',
+            }}
+          >
+            <option value="" style={{ background: '#18151e', color: '#ffffff' }}>
+              Entire {activeWsObj?.name} ({sortableCounts.rootSortable} loose files)
+            </option>
+            {sortableSubfolders.map((sub) => (
+              <option key={sub.name} value={sub.name} style={{ background: '#18151e', color: '#ffffff' }}>
+                📁 {sub.name} ({sortableCounts.subfolderSortable[sub.name]} files)
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* 2. Segmented Icon Tab Bar with Enhanced Animations */}
       <div
@@ -926,17 +902,17 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
         {/* TAB 1: SCAN & PLAN */}
         {activeTab === 'planner' && (
           <>
-            {/* Row 1: Auto-sort files */}
+            {/* Row 1: Auto-sort files by category with Spring iOS Toggle */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
-              <span style={{ fontSize: '12px', color: '#e2e8f0', fontWeight: '500' }}>
-                Auto-sort files
+              <span style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: '500' }}>
+                Auto-sort files by category
               </span>
               <div
                 onClick={() => setAutoSortEnabled(!autoSortEnabled)}
                 style={{
-                  width: '38px',
-                  height: '22px',
-                  borderRadius: '11px',
+                  width: '42px',
+                  height: '24px',
+                  borderRadius: '12px',
                   background: autoSortEnabled ? '#e2e8f0' : 'rgba(255, 255, 255, 0.14)',
                   position: 'relative',
                   cursor: 'pointer',
@@ -948,12 +924,12 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   style={{
                     position: 'absolute',
                     top: '2px',
-                    left: autoSortEnabled ? '18px' : '2px',
-                    width: '18px',
-                    height: '18px',
+                    left: autoSortEnabled ? '20px' : '2px',
+                    width: '20px',
+                    height: '20px',
                     borderRadius: '50%',
                     background: autoSortEnabled ? '#0f172a' : '#8e8c95',
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
                     transition: 'left 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
                   }}
                 />
@@ -1040,7 +1016,12 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
               </div>
             </div>
 
-            {/* Row 3: Expandable Custom Prompt */}
+            {/* Caption */}
+            <div style={{ fontSize: '11px', color: '#8a8790', paddingLeft: '2px' }}>
+              Click a chip to start. Natural language assistant below.
+            </div>
+
+            {/* Row 4: Expandable Options Accordion */}
             <div style={{ background: 'rgba(255, 255, 255, 0.04)', borderRadius: '12px', padding: '8px 10px' }}>
               <button
                 onClick={() => setOptionsExpanded(!optionsExpanded)}
@@ -1052,20 +1033,20 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   alignItems: 'center',
                   gap: '6px',
                   color: '#cbd5e1',
-                  fontSize: '11px',
+                  fontSize: '12px',
                   fontWeight: '600',
                   cursor: 'pointer',
                   width: '100%',
                 }}
               >
                 <span style={{ transform: optionsExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease', display: 'flex' }}>
-                  <ChevronRight size={13} color="#94a3b8" />
+                  <ChevronRight size={14} color="#94a3b8" />
                 </span>
-                <span>Custom Prompt</span>
+                <span>Options & Natural Language</span>
               </button>
 
               {optionsExpanded && (
-                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px', animation: 'accordionExpand 0.2s ease-out' }}>
+                <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px', animation: 'accordionExpand 0.2s ease-out' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -1082,7 +1063,7 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleRunPrompt()}
-                      placeholder="e.g. group by date, organize pdfs..."
+                      placeholder="Ask Idler to organize or clean..."
                       style={{
                         flex: 1,
                         background: 'transparent',
@@ -1298,26 +1279,24 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             {/* Divider Line */}
             <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', margin: '2px 0' }} />
 
-            {/* Row 4: Sound Chime */}
+            {/* Row 5: Audible completion chime */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {soundMuted ? (
-                  <VolumeX size={14} color="#64748b" />
-                ) : (
-                  <Volume2 size={14} color="#38bdf8" />
-                )}
-                <span style={{ fontSize: '12px', fontWeight: '500', color: '#e2e8f0' }}>
-                  Sound Chime
-                </span>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: '500', color: '#f1f5f9' }}>
+                  Audible completion chime
+                </div>
+                <div style={{ fontSize: '11px', color: '#8a8790' }}>
+                  {soundMuted ? 'Muted' : soundMode === 'mac' ? 'macOS Glass harmonic sound' : soundMode === 'win' ? 'Windows ascending triad' : 'Auto-detected for your OS'}
+                </div>
               </div>
 
               <div
                 onClick={onToggleSoundMute}
                 style={{
-                  width: '38px',
-                  height: '22px',
-                  borderRadius: '11px',
-                  background: !soundMuted ? '#e2e8f0' : 'rgba(255, 255, 255, 0.14)',
+                  width: '42px',
+                  height: '24px',
+                  borderRadius: '12px',
+                  background: soundMuted ? 'rgba(255, 255, 255, 0.14)' : '#e2e8f0',
                   position: 'relative',
                   cursor: 'pointer',
                   transition: 'background 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -1328,12 +1307,12 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
                   style={{
                     position: 'absolute',
                     top: '2px',
-                    left: !soundMuted ? '18px' : '2px',
-                    width: '18px',
-                    height: '18px',
+                    left: soundMuted ? '2px' : '20px',
+                    width: '20px',
+                    height: '20px',
                     borderRadius: '50%',
-                    background: !soundMuted ? '#0f172a' : '#8e8c95',
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
+                    background: soundMuted ? '#8e8c95' : '#0f172a',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
                     transition: 'left 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
                   }}
                 />
@@ -2206,21 +2185,21 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             }
           }}
           style={{
-            background: 'rgba(255, 255, 255, 0.05)',
+            background: 'rgba(255, 255, 255, 0.06)',
             border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '10px',
-            padding: '7px 12px',
+            borderRadius: '12px',
+            padding: '10px 14px',
             color: '#cbd5e1',
-            fontSize: '11px',
+            fontSize: '13px',
             fontWeight: '500',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '6px',
+            gap: '8px',
             cursor: 'pointer',
           }}
         >
-          <Settings size={13} color="#8a8790" />
+          <Settings size={15} color="#8a8790" />
           <span>Settings</span>
         </button>
 
@@ -2236,21 +2215,21 @@ export const CozyPopover: React.FC<CozyPopoverProps> = ({
             }
           }}
           style={{
-            background: 'rgba(255, 255, 255, 0.05)',
+            background: 'rgba(255, 255, 255, 0.06)',
             border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '10px',
-            padding: '7px 12px',
+            borderRadius: '12px',
+            padding: '10px 14px',
             color: '#cbd5e1',
-            fontSize: '11px',
+            fontSize: '13px',
             fontWeight: '500',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '6px',
+            gap: '8px',
             cursor: 'pointer',
           }}
         >
-          <Power size={13} color="#8a8790" />
+          <Power size={15} color="#8a8790" />
           <span>Quit</span>
         </button>
       </div>
