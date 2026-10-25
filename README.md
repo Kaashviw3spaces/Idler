@@ -398,21 +398,21 @@ Idler is distributed under the MIT License, provided the repository's `LICENSE` 
 
 ---
 
-## 📦 Official Releases & Downloads (v0.2.0)
+## 📦 Official Releases & Downloads (v0.2.1)
 
-> **Zero-Dependency Native Desktop Binaries with Embedded Standalone Backend (PyInstaller)**  
+> **Zero-Dependency Native Desktop Binaries with Embedded Standalone Backend (PyInstaller) & Auto-Updates**  
 > *Runs out-of-the-box on any computer without requiring Python, Node.js, or external dependencies.*
 
 ### 🪟 Windows (10 / 11 64-bit)
 
 | Package | Download Link | Type | Description |
 |---|---|---|---|
-| **Installer (Recommended)** | [📥 **`Idler.Setup.0.2.0.exe`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.0/Idler.Setup.0.2.0.exe) | `.exe` | One-click setup installer with Start Menu & System Tray integration |
-| **Portable Executable** | [📥 **`Idler.0.2.0.exe`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.0/Idler.0.2.0.exe) | `.exe` | Single-file portable executable — run immediately with zero installation |
-| **Portable ZIP** | [📥 **`Idler-0.2.0-win.zip`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.0/Idler-0.2.0-win.zip) | `.zip` | Standalone unpacked folder archive |
+| **Installer (Recommended)** | [📥 **`Idler.Setup.0.2.1.exe`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.1/Idler.Setup.0.2.1.exe) | `.exe` | One-click setup installer with Start Menu & System Tray integration |
+| **Portable Executable** | [📥 **`Idler.0.2.1.exe`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.1/Idler.0.2.1.exe) | `.exe` | Single-file portable executable — run immediately with zero installation |
+| **Portable ZIP** | [📥 **`Idler-0.2.1-win.zip`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.1/Idler-0.2.1-win.zip) | `.zip` | Standalone unpacked folder archive |
 
 **Windows Instructions:**
-1. Download **`Idler.Setup.0.2.0.exe`** (or **`Idler.0.2.0.exe`**).
+1. Download **`Idler.Setup.0.2.1.exe`** (or **`Idler.0.2.1.exe`**).
 2. Launch the application. Idler will appear immediately in your bottom-right **Windows System Tray** (next to the clock).
 3. Click the sloth tray icon to open the popover menu, sort loose files, and preview items!
 
@@ -422,11 +422,11 @@ Idler is distributed under the MIT License, provided the repository's `LICENSE` 
 
 | Package | Download Link | Type | Description |
 |---|---|---|---|
-| **DMG Installer (Recommended)** | [📥 **`Idler-0.2.0-arm64.dmg`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.0/Idler-0.2.0-arm64.dmg) | `.dmg` | Native drag-and-drop disk image installer |
-| **ZIP Archive** | [📥 **`Idler-0.2.0-arm64-mac.zip`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.0/Idler-0.2.0-arm64-mac.zip) | `.zip` | Standalone portable `.app` bundle |
+| **DMG Installer (Recommended)** | [📥 **`Idler-0.2.1-arm64.dmg`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.1/Idler-0.2.1-arm64.dmg) | `.dmg` | Native drag-and-drop disk image installer |
+| **ZIP Archive** | [📥 **`Idler-0.2.1-arm64-mac.zip`**](https://github.com/Kaashviw3spaces/Idler/releases/download/v0.2.1/Idler-0.2.1-arm64-mac.zip) | `.zip` | Standalone portable `.app` bundle |
 
 **macOS Instructions:**
-1. Download **`Idler-0.2.0-arm64.dmg`** (or unzip `Idler-0.2.0-arm64-mac.zip`).
+1. Download **`Idler-0.2.1-arm64.dmg`** (or unzip `Idler-0.2.1-arm64-mac.zip`).
 2. Drag `Idler.app` into your `/Applications` folder.
 3. If macOS Gatekeeper alerts on first launch, run:
    ```bash
