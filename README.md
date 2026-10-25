@@ -64,7 +64,7 @@ You tell Idler what needs doing. It figures out a possible plan, shows you what 
 
 No need to write a script for every tiny chore. No need to manually inspect every file. And definitely no need to give an AI unrestricted control of your computer.
 
-### 💬 Things you could ask IDLER
+### 💬 Things you could ask Idler
 
 > "Please organize my Downloads folder. It's getting embarrassing."
 
